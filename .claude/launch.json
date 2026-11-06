@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "airport-game", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:http"], "port": 3000 }
+  ]
+}

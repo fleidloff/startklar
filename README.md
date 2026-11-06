@@ -26,3 +26,7 @@ Progress is saved in the browser (`localStorage`, key `flughafen-startklar`, ver
 ```bash
 npm run lint && npx tsc --noEmit && npm test && npm run build
 ```
+
+## Deploy
+
+Every push to `main` runs `.github/workflows/pages.yml`: checks, static export (`out/`) and deploy to GitHub Pages at https://fleidloff.github.io/startklar/. One-time setup: repository Settings → Pages → Source: **GitHub Actions**.

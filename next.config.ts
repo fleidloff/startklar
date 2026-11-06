@@ -7,9 +7,10 @@ const lanIps = Object.values(networkInterfaces())
   .map((n) => n!.address);
 
 const nextConfig: NextConfig = {
+  output: "export",
+  // GitHub Pages serves the project under /<repo>; the Pages workflow sets this
+  basePath: process.env.PAGES_BASE_PATH ?? "",
   allowedDevOrigins: lanIps,
-  cacheComponents: true,
-  partialPrefetching: true,
 };
 
 export default nextConfig;

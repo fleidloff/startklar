@@ -17,7 +17,6 @@ const PLANE_W = 560;
 const SCALE = PLANE_W / 120;
 const THROTTLE = { x0: 210, x1: 540, y: 915 };
 const STICK = { x: 1320, top: 520, bottom: 860 };
-const GEAR = { x: 1320, top: 560, bottom: 800 };
 const CLOUDS = [
   [200, 160, 1.1],
   [620, 90, 0.8],
@@ -59,7 +58,11 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
         const cap = s.phase === "wolken" || s.phase === "fertig" ? Infinity : 260;
         s.alt = Math.min(cap, s.alt + 160 * dt);
       }
-      if (s.phase === "abheben" && s.alt > 110) s.phase = "fahrwerk";
+      if (s.phase === "abheben" && s.alt > 110) {
+        s.phase = "fahrwerk";
+        s.retracting = true;
+        sfx.pneumatic();
+      }
       if (s.retracting) s.gear = Math.max(0, s.gear - dt / 1.2);
       if (s.phase === "fahrwerk" && s.gear === 0) s.phase = "wolken";
       if (s.phase === "wolken") {
@@ -90,7 +93,7 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
       if (view.tooSlow) setHint("Noch nicht schnell genug! Erst bis zur grünen Fahne.");
       else setHint(view.v < 0.03 ? "Schieb den Schubhebel nach vorne!" : `Tempo ${kmh} km/h – schneller!`);
     } else if (view.phase === "abheben") setHint("Jetzt abheben! Zieh den Knüppel nach oben!");
-    else if (view.phase === "fahrwerk") setHint("Wir fliegen! Jetzt das Fahrwerk einfahren!");
+    else if (view.phase === "fahrwerk") setHint("Wir fliegen! Das Fahrwerk fährt ein.");
     else setHint(`Guten Flug nach ${dest.city}!`);
   }, [view.phase, view.tooSlow, view.v < 0.03, kmh, dest.city, setHint]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -100,13 +103,6 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
   const setPull = (value: number) => {
     sim.current.pull = clamp(value, 0, 1);
   };
-  const retract = () => {
-    const s = sim.current;
-    if (s.phase !== "fahrwerk" || s.retracting) return;
-    s.retracting = true;
-    sfx.pneumatic();
-  };
-
   const onMove = (e: React.PointerEvent) => {
     const which = grabs.current.get(e.pointerId);
     if (!which || !svgRef.current) return;
@@ -132,7 +128,6 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
   const flyScale = 1 - Math.min(0.45, view.fly * 0.18);
   const knobX = THROTTLE.x0 + view.throttle * (THROTTLE.x1 - THROTTLE.x0);
   const stickY = STICK.bottom - view.pull * (STICK.bottom - STICK.top);
-  const leverY = GEAR.bottom - (1 - view.gear) * (GEAR.bottom - GEAR.top);
 
   return (
     <div className="scene">
@@ -279,40 +274,6 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
           </g>
         )}
 
-        {(view.phase === "fahrwerk" || (view.phase === "wolken" && view.fly < 1)) && (
-          <g>
-            <rect x={GEAR.x - 110} y={GEAR.top - 110} width={220} height={GEAR.bottom - GEAR.top + 190} rx={22} fill="#fbf0cf" stroke={OUT} strokeWidth={4} />
-            <text x={GEAR.x} y={GEAR.top - 70} textAnchor="middle" fontSize={24} fontWeight={700} fill={OUT}>Fahrwerk</text>
-            {[-40, 0, 40].map((dx) => (
-              <circle key={dx} cx={GEAR.x + dx} cy={GEAR.top - 35} r={11} fill={view.gear > 0.5 ? "#4cbb6c" : "#9aa3ad"} stroke={OUT} strokeWidth={3} />
-            ))}
-            <rect x={GEAR.x - 12} y={GEAR.top} width={24} height={GEAR.bottom - GEAR.top} rx={12} fill="#3b4250" stroke={OUT} strokeWidth={3} />
-            <text x={GEAR.x + 30} y={GEAR.top + 10} fontSize={18} fill="#5b6779">rein</text>
-            <text x={GEAR.x + 30} y={GEAR.bottom} fontSize={18} fill="#5b6779">raus</text>
-            <g
-              role="button"
-              tabIndex={0}
-              aria-label="Fahrwerk einfahren"
-              onClick={retract}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && retract()}
-              style={{ cursor: "pointer" }}
-              className={view.retracting ? undefined : "pulse-svg"}
-            >
-              <circle cx={GEAR.x} cy={leverY} r={58} fill="rgba(255,255,255,0.01)" />
-              <circle cx={GEAR.x} cy={leverY} r={36} fill="#fff" stroke={OUT} strokeWidth={4} />
-              <circle cx={GEAR.x} cy={leverY} r={27} fill="#30343c" stroke={OUT} strokeWidth={3} />
-              <circle cx={GEAR.x} cy={leverY} r={10} fill="#9aa3ad" stroke={OUT} strokeWidth={2} />
-              {[0, 60, 120].map((a) => (
-                <line key={a} x1={GEAR.x} y1={leverY - 24} x2={GEAR.x} y2={leverY + 24} stroke="#9aa3ad" strokeWidth={3} transform={`rotate(${a} ${GEAR.x} ${leverY})`} />
-              ))}
-            </g>
-            {!view.retracting && (
-              <g className="hand-hint" style={{ ["--hx" as string]: "0px", ["--hy" as string]: `${GEAR.top - GEAR.bottom}px` }} transform={`translate(${GEAR.x + 8},${GEAR.bottom + 6})`}>
-                <Hand />
-              </g>
-            )}
-          </g>
-        )}
       </svg>
     </div>
   );

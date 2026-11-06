@@ -538,7 +538,7 @@ function Checklist({ plane, state, onClose, onGo }: { plane: Plane; state: GameS
     { label: "Einwinken", done: parked, screen: "einwinker", icon: "einwinker", enabled: plane.stage === "einwinken" },
     ...requiredTasks(state.season).map((t) => ({ label: tool(t).label, done: plane.done.includes(t) || plane.stage === "abflug", screen: t as Screen, icon: t, enabled: parked && plane.stage !== "abflug" && !plane.done.includes(t) })),
     { label: "Zurückschieben", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) },
-    { label: "Start & Fahrwerk", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" },
+    { label: "Start", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" },
   ];
   const t = aircraft(plane.type);
   return (

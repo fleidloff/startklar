@@ -258,7 +258,7 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
               onPointerDown={(e) => grab(e, "stick")}
               onKeyDown={(e) => e.key === "ArrowUp" && setPull(1)}
               onKeyUp={(e) => e.key === "ArrowUp" && setPull(0)}
-              style={{ cursor: "grab", touchAction: "none" }}
+              style={{ cursor: "grab", touchAction: "none", transformOrigin: `${STICK.x}px ${stickY}px` }}
               className={view.phase === "abheben" && view.pull === 0 ? "pulse-svg" : undefined}
             >
               <circle cx={STICK.x} cy={stickY} r={60} fill="rgba(255,255,255,0.01)" />

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createPlane, initialState, openTasks, parseSave, reducer, type GameState } from "./state.ts";
-import { PUSHBACK_END, departurePose, pushbackPose } from "./motion.ts";
+import { PUSHBACK_END, pushbackPose } from "./motion.ts";
 
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -39,22 +39,21 @@ test("spawning fills free gates only and never duplicates flight numbers", () =>
   assert.equal(createPlane(s, rnd), null);
 });
 
-test("saves are validated and a plane that was taking off counts as departed", () => {
+test("saves are validated and a plane waiting for take-off stays on the taxiway", () => {
   assert.equal(parseSave("not json"), null);
   assert.equal(parseSave(JSON.stringify({ v: 2 })), null);
   const s = initialState();
   s.planes[0].stage = "abflug";
   const loaded = parseSave(JSON.stringify(s))!;
-  assert.equal(loaded.planes.length, 1);
-  assert.equal(loaded.log.length, 1);
+  assert.equal(loaded.planes.length, 2);
+  assert.equal(loaded.planes[0].stage, "abflug");
+  assert.equal(loaded.log.length, 0);
   const old = initialState();
   (old.planes[0].done as string[]).push("catering", "bus");
   assert.deepEqual(parseSave(JSON.stringify(old))!.planes[0].done, ["bus"], "removed tasks are dropped from old saves");
 });
 
-test("pushback ends on the taxi lane and departure climbs", () => {
+test("pushback ends on the taxi lane", () => {
   const end = pushbackPose(2, "A320", PUSHBACK_END);
   assert.ok(Math.abs(Math.sin(end.heading) + 1) < 0.05, "nose points along the lane");
-  assert.equal(departurePose(2, "A320", 0).z, 0);
-  assert.ok(departurePose(2, "A320", 30).z > 20);
 });

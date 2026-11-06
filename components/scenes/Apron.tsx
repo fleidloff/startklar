@@ -5,14 +5,13 @@ import { Icon } from "../icons";
 import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
 import { GATE_COLORS, tool, type ToolId } from "@/game/data";
 import { capture, P, clamp, gateY } from "@/game/iso";
-import { departurePose } from "@/game/motion";
+import { PUSHBACK_END, pushbackPose } from "@/game/motion";
 import { openTasks, readyForPushback, type GameState, type Plane } from "@/game/state";
 
 export type Screen = "title" | "vorfeld" | "tower" | "weltkarte" | ToolId;
 
 interface Props {
   state: GameState;
-  departures: Record<string, number>;
   onSelect: (id: string) => void;
   onOpen: (screen: Screen, planeId?: string) => void;
 }
@@ -35,15 +34,21 @@ export function turnaroundProps(p: Plane): Drawable[] {
 export function otherPlanes(state: GameState, exclude: string): Drawable[] {
   const list: Drawable[] = [];
   for (const p of state.planes) {
-    if (p.id === exclude || (p.stage !== "abfertigung" && p.stage !== "einwinken")) continue;
+    if (p.id === exclude || p.stage === "anflug") continue;
     const snow = state.season === "winter" && p.stage === "abfertigung" && !p.done.includes("enteisung") ? 1 : 0;
-    list.push(planeDrawable(p, p.stage === "einwinken" ? waitingPose(p) : parkedPose(p), { snow }));
+    list.push(planeDrawable(p, standingPose(p), { snow }));
     if (p.stage === "abfertigung") list.push(...turnaroundProps(p));
   }
   return list;
 }
 
-export function Apron({ state, departures, onSelect, onOpen }: Props) {
+export function standingPose(p: Plane) {
+  if (p.stage === "einwinken") return waitingPose(p);
+  if (p.stage === "abflug") return pushbackPose(p.gate, p.type, PUSHBACK_END);
+  return parkedPose(p);
+}
+
+export function Apron({ state, onSelect, onOpen }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const selected = state.planes.find((p) => p.id === state.selected);
   const focus = (gate: number) => {
@@ -52,8 +57,6 @@ export function Apron({ state, departures, onSelect, onOpen }: Props) {
   };
   const [cam, setCam] = useState(() => focus(selected?.gate ?? 1));
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null);
-  const [now, setNow] = useState(0);
-  const flying = Object.keys(departures).length > 0;
 
   useEffect(() => {
     if (!selected) return;
@@ -73,24 +76,13 @@ export function Apron({ state, departures, onSelect, onOpen }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [selected?.id, selected?.gate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!flying) return;
-    let raf = 0;
-    const loop = () => {
-      setNow(performance.now());
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [flying]);
-
   const drawables: Drawable[] = [];
   const bubbles: React.ReactNode[] = [];
   const bubbleR = 30 / cam.zoom;
 
   for (const p of state.planes) {
     const color = GATE_COLORS[p.gate];
-    let pose = { ...parkedPose(p), z: 0 };
+    const pose = standingPose(p);
     let actions: { id: Screen; icon: string; label: string; color: string; pulse?: boolean }[] = [];
     if (p.stage === "anflug") {
       const c = P(30, gateY(p.gate), 6);
@@ -100,18 +92,16 @@ export function Apron({ state, departures, onSelect, onOpen }: Props) {
       continue;
     }
     if (p.stage === "einwinken") {
-      pose = { ...waitingPose(p), z: 0 };
       actions = [{ id: "einwinker", icon: "einwinker", label: "Einwinken", color: tool("einwinker").color, pulse: true }];
     } else if (p.stage === "abfertigung") {
       drawables.push(...turnaroundProps(p));
       actions = openTasks(p, state.season).map((t) => ({ id: t, icon: t, label: tool(t).label, color: tool(t).color }));
       if (readyForPushback(p, state.season)) actions = [{ id: "pushback", icon: "pushback", label: "Zurückschieben", color: tool("pushback").color, pulse: true }];
     } else if (p.stage === "abflug") {
-      const start = departures[p.id];
-      pose = departurePose(p.gate, p.type, start ? Math.max(0, now - start) / 1000 : 0);
+      actions = [{ id: "start", icon: "start", label: "Start", color: tool("start").color, pulse: true }];
     }
     const snow = state.season === "winter" && p.stage === "abfertigung" && !p.done.includes("enteisung") ? 1 : 0;
-    const d = planeDrawable(p, pose, { snow, selected: p.id === state.selected && p.stage !== "abflug" });
+    const d = planeDrawable(p, pose, { snow, selected: p.id === state.selected });
     drawables.push({
       ...d,
       node: (
@@ -120,11 +110,9 @@ export function Apron({ state, departures, onSelect, onOpen }: Props) {
         </g>
       ),
     });
-    if (p.stage !== "abflug") {
-      const g = planeGeometry(pose.x, pose.y, pose.heading, p.type);
-      const c = P(pose.x, pose.y, g.zc + g.r + 9);
-      bubbles.push(<Bubble key={p.id} at={c} r={bubbleR} title={p.flightNo} color={color} actions={actions} onOpen={(s) => onOpen(s, p.id)} onSelect={() => onSelect(p.id)} />);
-    }
+    const g = planeGeometry(pose.x, pose.y, pose.heading, p.type);
+    const c = P(pose.x, pose.y, g.zc + g.r + 9);
+    bubbles.push(<Bubble key={p.id} at={c} r={bubbleR} title={p.flightNo} color={color} actions={actions} onOpen={(s) => onOpen(s, p.id)} onSelect={() => onSelect(p.id)} />);
   }
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {

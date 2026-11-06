@@ -72,7 +72,7 @@ export function todoText(plane: Plane | undefined, season: Season): string {
     case "einwinken":
       return "Gelandet! Jetzt einwinken!";
     case "abflug":
-      return "Guten Flug!";
+      return "Bereit zum Start! Ab zur Startbahn!";
     case "abfertigung": {
       const open = openTasks(plane, season);
       if (open.length === 0) return "Startklar! Zurückschieben!";
@@ -183,16 +183,12 @@ export function parseSave(raw: string | null): GameState | null {
     const data = JSON.parse(raw) as GameState;
     if (data?.v !== 1 || !Array.isArray(data.planes) || !data.planes.every(isPlane) || !Array.isArray(data.log)) return null;
     const tasks = requiredTasks("winter");
-    let state: GameState = {
+    return {
       ...initialState(),
       ...data,
       planes: data.planes.map((p) => ({ ...p, done: p.done.filter((t) => tasks.includes(t)) })),
       collected: Array.isArray(data.collected) ? data.collected : [],
     };
-    for (const p of state.planes.filter((p) => p.stage === "abflug")) {
-      state = reducer(state, { type: "departed", id: p.id, at: Date.now() });
-    }
-    return state;
   } catch {
     return null;
   }

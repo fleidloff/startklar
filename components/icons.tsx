@@ -83,11 +83,15 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M36,12 c6,2 8,8 14,10 c4,4 2,12 -4,12 c-6,0 -6,6 -10,8 c-4,-4 -2,-10 -4,-14 c-2,-6 0,-12 4,-16 z" fill="#f6c02c" strokeWidth={2.5} />
     </g>
   ),
-  home: (
+  airport: (
     <g {...s}>
-      <path d="M10,30 L32,10 L54,30" fill="none" />
-      <path d="M16,26 v26 h32 v-26" fill="#fff" />
-      <rect x={27} y={36} width={10} height={16} fill="#e8574a" />
+      <rect x={6} y={36} width={38} height={18} rx={2} fill="#e9edf2" />
+      <rect x={10} y={40} width={30} height={7} rx={1} fill="#7cc4ec" strokeWidth={2.5} />
+      <rect x={45} y={24} width={9} height={30} fill="#fff" />
+      <path d="M40,14 H59 L56,25 H43 Z" fill="#5c86ad" />
+      <rect x={41} y={10} width={17} height={4} rx={1} fill="#fff" strokeWidth={2.5} />
+      <line x1={49.5} y1={4} x2={49.5} y2={10} strokeWidth={2.5} />
+      <path d="M6,22 L14,22 L20,12 L24,12 L21,22 L29,22 L32,18 L35,18 L34,25 L21,27 L24,34 L20,34 L14,27 L7,26 Z" fill="#f6c02c" strokeWidth={2.2} />
     </g>
   ),
   sound: (
@@ -147,6 +151,17 @@ const ICONS: Record<string, ReactNode> = {
   "fullscreen-exit": (
     <g {...s} strokeWidth={5} fill="none">
       <path d="M24,10 V24 H10 M54,24 H40 V10 M40,54 V40 H54 M10,40 H24 V54" />
+    </g>
+  ),
+  start: (
+    <g {...s}>
+      <line x1={6} y1={54} x2={58} y2={54} strokeWidth={4} />
+      <line x1={10} y1={54} x2={22} y2={54} stroke="#fff" strokeWidth={2} />
+      <line x1={30} y1={54} x2={42} y2={54} stroke="#fff" strokeWidth={2} />
+      <g transform="rotate(-28 32 32)">
+        <path d="M6,34 L18,34 L28,18 L34,18 L30,34 L44,34 L50,26 L54,26 L52,38 L30,42 L34,54 L28,54 L18,42 L8,40 Z" fill="#fff" />
+      </g>
+      <path d="M6,26 h8 M4,34 h6" strokeWidth={3} />
     </g>
   ),
   close: (

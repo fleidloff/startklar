@@ -816,6 +816,10 @@ text {
   animation: fade-out 1s forwards;
 }
 
+.dim-control {
+  opacity: 0.5;
+}
+
 .glow {
   filter: blur(6px);
 }

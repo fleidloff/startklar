@@ -8,13 +8,13 @@ import { Pushback } from "./scenes/Pushback";
 import { Fuel } from "./scenes/Fuel";
 import { Baggage } from "./scenes/Baggage";
 import { Deice } from "./scenes/Deice";
+import { Takeoff } from "./scenes/Takeoff";
 import { WorldMap } from "./scenes/WorldMap";
 import { IsoWorld, parkedPose, planeDrawable } from "./World";
 import { Banner, BigButton, Flag, Modal, RoundButton, Stars } from "./ui";
 import { Icon } from "./icons";
 import { GATE_COLORS, PRAISE, TOOLS, aircraft, destination, tool, type TaskId, type ToolId } from "@/game/data";
-import { H, W, clock } from "@/game/iso";
-import { departureDuration } from "@/game/motion";
+import { H, W } from "@/game/iso";
 import { setSound, sfx } from "@/game/sound";
 import {
   createPlane,
@@ -57,12 +57,12 @@ function nextStep(p: Plane | undefined, season: GameState["season"]): Screen | u
   if (p.stage === "anflug") return "tower";
   if (p.stage === "einwinken") return "einwinker";
   if (p.stage === "abfertigung") return openTasks(p, season)[0] ?? "pushback";
-  return undefined;
+  return "start";
 }
 
 const screenLabel = (s: Screen) =>
   s === "tower" ? "Zum Tower" : s === "vorfeld" ? "Zum Vorfeld" : s === "weltkarte" ? "Zur Weltkarte" : tool(s as ToolId).label;
-const screenIcon = (s: Screen) => (s === "tower" ? "radar" : s === "vorfeld" ? "home" : s === "weltkarte" ? "globe" : s);
+const screenIcon = (s: Screen) => (s === "tower" ? "radar" : s === "vorfeld" ? "airport" : s === "weltkarte" ? "globe" : s);
 
 export default function Game() {
   const [state, dispatch] = useReducer(reducer, undefined, () => loadGame() ?? initialState());
@@ -72,7 +72,6 @@ export default function Game() {
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [panel, setPanel] = useState<"checkliste" | "help" | "reset" | null>(null);
-  const [departures, setDepartures] = useState<Record<string, number>>({});
   const [scale, setScale] = useState(1);
   const [portrait, setPortrait] = useState(false);
   const [fullscreen, setFullscreen] = useState(() => !!fullscreenElement());
@@ -152,25 +151,6 @@ export default function Game() {
     return () => clearTimeout(t);
   }, [screen, state.planes.length, showToast]);
 
-  const depart = (p: Plane) => {
-    setDepartures((d) => ({ ...d, [p.id]: clock() }));
-    setTimeout(() => {
-      const before = stateRef.current.collected.includes(p.type);
-      dispatch({ type: "departed", id: p.id, at: Date.now() });
-      setDepartures((d) => {
-        const rest = { ...d };
-        delete rest[p.id];
-        return rest;
-      });
-      const d = destination(p.dest);
-      showToast(
-        before
-          ? `Flug ${p.flightNo} ist unterwegs nach ${d.city}! Schau auf der Weltkarte!`
-          : `Flug ${p.flightNo} fliegt nach ${d.city}! Neuer Sticker: ${aircraft(p.type).name}!`,
-      );
-    }, departureDuration(p.gate) * 1000);
-  };
-
   const selected = state.planes.find((p) => p.id === state.selected);
   const active = state.planes.find((p) => p.id === scenePlane) ?? selected;
 
@@ -205,6 +185,9 @@ export default function Game() {
     } else if (id === "pushback") {
       plane = pick((p) => readyForPushback(p, state.season));
       if (!plane) return showToast("Noch kein Flugzeug ist startklar. Erst alle Aufgaben auf der Checkliste erledigen!");
+    } else if (id === "start") {
+      plane = pick((p) => p.stage === "abflug");
+      if (!plane) return showToast("Noch wartet kein Flugzeug auf der Rollbahn. Erst mit dem Schlepper zurückschieben!");
     } else {
       plane = pick((p) => openTasks(p, state.season).includes(id));
       if (!plane) {
@@ -239,11 +222,19 @@ export default function Game() {
   const onPushed = () => {
     if (!active || active.stage !== "abfertigung") return;
     dispatch({ type: "pushed", id: active.id });
-    depart(active);
+    finish(active, "Startklar!", `Flug ${active.flightNo} steht auf der Rollbahn. Jetzt geht es zum Start!`, { ...active, stage: "abflug" });
+  };
+
+  const onTakeoff = () => {
+    if (!active || active.stage !== "abflug") return;
+    const d = destination(active.dest);
+    const sticker = state.collected.includes(active.type) ? "" : ` Neuer Sticker: ${aircraft(active.type).name}!`;
+    dispatch({ type: "departed", id: active.id, at: Date.now() });
     sfx.success();
     setHint(null);
+    setScenePlane(null);
     setScreen("vorfeld");
-    showToast(`Gute Reise! Flug ${active.flightNo} rollt zur Startbahn.`);
+    setCelebration({ title: "Guten Flug!", text: `Flug ${active.flightNo} ist unterwegs nach ${d.city} (${d.iata}).${sticker}`, next: "weltkarte" });
   };
 
   const onLanded = (id: string) => {
@@ -267,7 +258,7 @@ export default function Game() {
   const latest = useRef<{ done: () => void; landed: (id: string) => void }>({ done: () => {}, landed: () => {} });
   useEffect(() => {
     latest.current = {
-      done: isTask(screen) ? onTaskDone(screen) : screen === "einwinker" ? onParked : screen === "pushback" ? onPushed : () => {},
+      done: isTask(screen) ? onTaskDone(screen) : screen === "einwinker" ? onParked : screen === "pushback" ? onPushed : screen === "start" ? onTakeoff : () => {},
       landed: onLanded,
     };
   });
@@ -280,13 +271,13 @@ export default function Game() {
       case "title":
         return <TitleBackdrop state={state} />;
       case "vorfeld":
-        return <Apron state={state} departures={departures} onSelect={(id) => { sfx.click(); dispatch({ type: "select", id }); }} onOpen={(s, id) => (s === "tower" || s === "weltkarte" ? go(s, id) : openTool(s as ToolId, id))} />;
+        return <Apron state={state} onSelect={(id) => { sfx.click(); dispatch({ type: "select", id }); }} onOpen={(s, id) => (s === "tower" || s === "weltkarte" ? go(s, id) : openTool(s as ToolId, id))} />;
       case "tower":
         return <Tower state={state} setHint={setHint} onLanded={onLandedStable} />;
       case "weltkarte":
         return <WorldMap state={state} />;
     }
-    if (!active) return <Apron state={state} departures={departures} onSelect={() => {}} onOpen={() => {}} />;
+    if (!active) return <Apron state={state} onSelect={() => {}} onOpen={() => {}} />;
     switch (screen) {
       case "einwinker":
         return <Marshaller key={active.id} state={state} plane={active} setHint={setHint} onDone={onDone} />;
@@ -300,6 +291,8 @@ export default function Game() {
         return <Baggage key={active.id} {...sceneProps()!} />;
       case "enteisung":
         return <Deice key={active.id} {...sceneProps()!} />;
+      case "start":
+        return active.stage === "abflug" ? <Takeoff key={active.id} {...sceneProps()!} /> : <Apron state={state} onSelect={() => {}} onOpen={() => {}} />;
     }
   };
 
@@ -317,7 +310,7 @@ export default function Game() {
             <nav className="toolbar" aria-label="Werkzeuge">
               {TOOLS.map((t) => {
                 const needed = t.id === "checkliste" ? 0 : state.planes.filter((p) =>
-                  t.id === "einwinker" ? p.stage === "einwinken" : t.id === "pushback" ? readyForPushback(p, state.season) : openTasks(p, state.season).includes(t.id as TaskId),
+                  t.id === "einwinker" ? p.stage === "einwinken" : t.id === "pushback" ? readyForPushback(p, state.season) : t.id === "start" ? p.stage === "abflug" : openTasks(p, state.season).includes(t.id as TaskId),
                 ).length;
                 return (
                   <RoundButton
@@ -377,7 +370,7 @@ export default function Game() {
               <button type="button" className="radar-btn" onClick={() => go("tower")} aria-label="Tower und Radar" title="Tower & Radar">
                 <MiniRadar count={state.planes.filter((p) => p.stage === "anflug").length} />
               </button>
-              {screen !== "vorfeld" && <RoundButton icon="home" label="Zurück zum Vorfeld" color="#3aa3e8" size={78} onClick={() => go("vorfeld")} />}
+              {screen !== "vorfeld" && <RoundButton icon="airport" label="Zurück zum Vorfeld" color="#3aa3e8" size={78} onClick={() => go("vorfeld")} />}
               <RoundButton icon="globe" label="Weltkarte" color="#2fb7a8" size={78} active={screen === "weltkarte"} onClick={() => go("weltkarte")} />
               <RoundButton
                 icon={state.season === "sommer" ? "snow" : "sun"}
@@ -436,8 +429,8 @@ export default function Game() {
             <p className="modal-text">{celebration.text}</p>
             <div className="modal-actions">
               {celebration.next && (
-                <BigButton autoFocus icon={screenIcon(celebration.next)} onClick={() => (celebration.next === "tower" ? go("tower", celebration.planeId) : celebration.next === "vorfeld" ? go("vorfeld") : openTool(celebration.next as ToolId, celebration.planeId))}>
-                  {celebration.next === "pushback" ? "Startklar! Zurückschieben" : celebration.next === "einwinker" ? "Jetzt einwinken!" : screenLabel(celebration.next)}
+                <BigButton autoFocus icon={screenIcon(celebration.next)} onClick={() => (celebration.next === "tower" ? go("tower", celebration.planeId) : celebration.next === "vorfeld" || celebration.next === "weltkarte" ? go(celebration.next) : openTool(celebration.next as ToolId, celebration.planeId))}>
+                  {celebration.next === "pushback" ? "Startklar! Zurückschieben" : celebration.next === "einwinker" ? "Jetzt einwinken!" : celebration.next === "start" ? "Ab zur Startbahn!" : screenLabel(celebration.next)}
                 </BigButton>
               )}
               {celebration.stay && (
@@ -445,7 +438,7 @@ export default function Game() {
                   {celebration.stay.label}
                 </BigButton>
               )}
-              <BigButton color="#3aa3e8" icon="home" onClick={() => go("vorfeld")}>
+              <BigButton color="#3aa3e8" icon="airport" onClick={() => go("vorfeld")}>
                 Zum Vorfeld
               </BigButton>
             </div>
@@ -459,7 +452,7 @@ export default function Game() {
             <h2>Neues Spiel starten?</h2>
             <p className="modal-text">Alle Flüge, Sticker und die Weltkarte fangen dann wieder von vorne an.</p>
             <div className="modal-actions">
-              <BigButton color="#e8574a" onClick={() => { dispatch({ type: "reset" }); setDepartures({}); setPanel(null); go("vorfeld"); }}>
+              <BigButton color="#e8574a" onClick={() => { dispatch({ type: "reset" }); setPanel(null); go("vorfeld"); }}>
                 Ja, neu anfangen
               </BigButton>
               <BigButton color="#4cbb6c" autoFocus onClick={() => setPanel(null)}>
@@ -544,7 +537,8 @@ function Checklist({ plane, state, onClose, onGo }: { plane: Plane; state: GameS
     { label: "Landen (Tower)", done: landed, screen: "tower", icon: "radar", enabled: !landed },
     { label: "Einwinken", done: parked, screen: "einwinker", icon: "einwinker", enabled: plane.stage === "einwinken" },
     ...requiredTasks(state.season).map((t) => ({ label: tool(t).label, done: plane.done.includes(t) || plane.stage === "abflug", screen: t as Screen, icon: t, enabled: parked && plane.stage !== "abflug" && !plane.done.includes(t) })),
-    { label: "Zurückschieben & Abflug", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) },
+    { label: "Zurückschieben", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) },
+    { label: "Start & Fahrwerk", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" },
   ];
   const t = aircraft(plane.type);
   return (

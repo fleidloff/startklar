@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { aircraft } from "@/game/data";
+import { aircraft, type AircraftType } from "@/game/data";
 import { K, P, pts, shade, type Pt } from "@/game/iso";
 
 export const OUT = "#26303f";
@@ -462,5 +462,42 @@ export function Cone({ at }: { at: Pt }) {
       <path d="M-5,0 L0,-14 L5,0 Z" fill="#f39a35" stroke={OUT} strokeWidth={1.4} strokeLinejoin="round" />
       <line x1={-2.8} y1={-6} x2={2.8} y2={-6} stroke="#fff" strokeWidth={2} />
     </g>
+  );
+}
+
+/** side view, nose to the right; gear 1 = down, 0 = retracted, undefined = no gear */
+export const SIDE_MAIN_GEAR_X = 68;
+export function SidePlane({ type, color, width = 96, gear }: { type: AircraftType; color: string | null; width?: number; gear?: number }) {
+  const c = color ?? "#b9c2cc";
+  const body = color ? "#f3f9ff" : "#d5dbe1";
+  const long = type.longHaul;
+  const legs = gear !== undefined && gear > 0.04 ? [long ? 100 : 94, SIDE_MAIN_GEAR_X - 4, SIDE_MAIN_GEAR_X + 3] : [];
+  return (
+    <svg viewBox="0 0 120 50" width={width} height={(width * 50) / 120} aria-hidden="true" overflow="visible">
+      <g stroke={OUT} strokeWidth={2} strokeLinejoin="round">
+        <path d={`M14,30 L6,8 L16,8 L30,24 Z`} fill={c} />
+        {type.props ? <path d="M46,20 L60,20 L64,10 L54,10 Z" fill="#dbe9f4" /> : <path d="M52,30 L72,30 L58,44 L48,44 Z" fill="#dbe9f4" />}
+        <path d={`M10,28 C10,22 20,20 30,20 L${long ? 98 : 92},20 C${long ? 112 : 106},20 ${long ? 116 : 110},26 ${long ? 116 : 110},30 C${long ? 116 : 110},34 104,36 96,36 L24,36 C16,36 10,34 10,28 Z`} fill={body} />
+        {type.id === "B747" && <path d="M70,20 C76,12 96,12 104,20 Z" fill={body} />}
+        {type.id === "A380" && <path d="M28,20 C40,12 96,12 108,24 L28,22 Z" fill={body} />}
+        <path d={`M24,33 L${long ? 104 : 98},33`} stroke={c} strokeWidth={4} />
+        {type.props ? (
+          <g>
+            <rect x={56} y={20} width={14} height={7} rx={3} fill={c} />
+            <ellipse cx={72} cy={23} rx={2} ry={9} fill="rgba(255,255,255,0.6)" strokeWidth={1.2} />
+          </g>
+        ) : (
+          <rect x={58} y={36} width={16} height={7} rx={3.5} fill={c} />
+        )}
+        {legs.map((x) => (
+          <g key={x}>
+            <line x1={x} y1={34} x2={x} y2={36 + 9 * gear!} strokeWidth={2.2} />
+            <circle cx={x} cy={36 + 9 * gear!} r={3.3 * gear!} fill="#30343c" strokeWidth={1.4} />
+          </g>
+        ))}
+      </g>
+      <line x1={32} y1={26} x2={long ? 92 : 86} y2={26} stroke="#2c4a6b" strokeWidth={3} strokeDasharray="0.1 5" strokeLinecap="round" />
+      <path d={`M${long ? 104 : 98},22 l6,4 h-7 z`} fill="#2c4a6b" />
+    </svg>
   );
 }

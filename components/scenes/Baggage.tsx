@@ -31,16 +31,17 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
   const loader = { x: beltX, y: y + g.r + 5.5, heading: -Math.PI / 2 };
   const top = P(beltX, y + g.r * 0.9, g.zc - g.r * 0.4);
   const bottom = local(loader.x, loader.y, loader.heading)(-3, 0, 1.0);
-  const cart = { x: beltX + 3, y: y + g.r + 15.5, heading: 0 };
+  const carts = [beltX + 3, beltX + 11.2].map((x) => ({ x, y: y + g.r + 18.5, heading: 0 }));
   const count = aircraft(plane.type).bags;
 
   const initial = useMemo<Bag[]>(() => {
-    const at = local(cart.x, cart.y, cart.heading);
+    const firstCart = Math.ceil(count / 2);
+    const slots = [[-2.2, 0], [0, 0], [2.2, 0], [-1.1, 1], [1.1, 1]];
     return [...Array(count).keys()].map((i) => {
-      const row = Math.floor(i / 4);
-      const col = i % 4;
-      const base = at(-3.2, 0, 1.0);
-      const home: Pt = [base[0] + col * 30 + row * 8, base[1] + col * 17 - row * 26];
+      const c = carts[i < firstCart ? 0 : 1];
+      const [a, row] = slots[i < firstCart ? i : i - firstCart];
+      const base = P(c.x + a, c.y, 1.0);
+      const home: Pt = [base[0], base[1] - row * 26];
       return { id: i, kind: KINDS[(i + plane.gate) % KINDS.length], color: COLORS[(i * 3 + plane.gate) % COLORS.length], home, state: "cart", pos: home, t0: 0, from: home };
     });
   }, [count, plane.gate]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -122,26 +123,38 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
     return b.state === "drag" ? b.pos : b.home;
   };
 
-  const cartAt = local(cart.x, cart.y, cart.heading);
   const drawables: Drawable[] = [
     ...otherPlanes(state, plane.id),
     { key: "plane", depth: pose.x + pose.y, node: <Plane {...pose} type={plane.type} livery={plane.livery} snow={state.season === "winter" && !plane.done.includes("enteisung") ? 1 : 0} /> },
     { key: "loader", depth: loader.x + loader.y, node: <BeltLoader {...loader} top={top} /> },
     {
-      key: "cart",
-      depth: cart.x + cart.y,
-      node: (
-        <g>
-          {[[3.6, 1.5], [3.6, -1.5], [-3.6, 1.5], [-3.6, -1.5]].map(([a, b], i) => <Wheel key={i} at={cartAt(a, b, 0.5)} r={0.5} />)}
-          <Box {...cart} l={9} w={3.6} h={0.4} z={0.5} color="#8a929c" />
-          <Box x={cart.x - 4.4} y={cart.y} l={0.3} w={3.6} h={1.6} z={0.9} color="#c9d0d8" />
-        </g>
-      ),
+      key: "towbar",
+      depth: carts[0].x + carts[0].y + 0.1,
+      node: (() => {
+        const a = P(carts[0].x + 3.6, carts[0].y, 0.7);
+        const b = P(carts[1].x - 3.6, carts[1].y, 0.7);
+        return <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={OUT} strokeWidth={3} strokeLinecap="round" />;
+      })(),
     },
+    ...carts.map((c, n) => {
+      const at = local(c.x, c.y, c.heading);
+      return {
+        key: `cart${n}`,
+        depth: c.x + c.y,
+        node: (
+          <g>
+            {[[2.8, 1.4], [2.8, -1.4], [-2.8, 1.4], [-2.8, -1.4]].map(([a, b], i) => <Wheel key={i} at={at(a, b, 0.5)} r={0.5} />)}
+            <Box {...c} l={7.2} w={3.4} h={0.4} z={0.5} color="#8a929c" />
+            <Box x={c.x - 3.5} y={c.y} l={0.3} w={3.4} h={1.6} z={0.9} color="#c9d0d8" />
+          </g>
+        ),
+      };
+    }),
   ];
 
   const door = top;
-  const center: Pt = [(bottom[0] + cartAt(0, 0)[0]) / 2, (bottom[1] + top[1]) / 2 + 10];
+  const lastCart = P(carts[1].x, carts[1].y);
+  const center: Pt = [(bottom[0] + lastCart[0]) / 2, (top[1] + lastCart[1]) / 2];
   const sorted = [...bags].sort((a, b) => (a.state === "drag" ? 1 : b.state === "drag" ? -1 : a.home[1] - b.home[1]));
   const firstOnCart = bags.find((b) => b.state === "cart");
 

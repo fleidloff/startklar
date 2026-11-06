@@ -1,5 +1,5 @@
 export type TaskId = "bus" | "gepaeck" | "tanken" | "enteisung";
-export type ToolId = TaskId | "pushback" | "einwinker" | "checkliste";
+export type ToolId = TaskId | "pushback" | "start" | "einwinker" | "checkliste";
 
 export interface Destination {
   id: string;
@@ -90,6 +90,7 @@ export interface ToolMeta {
 export const TOOLS: ToolMeta[] = [
   { id: "bus", label: "Vorfeldbus", color: "#e8574a", todo: "Passagiere bringen!" },
   { id: "pushback", label: "Pushback-Schlepper", color: "#4cbb6c", todo: "Zurückschieben!" },
+  { id: "start", label: "Start", color: "#ef6fae", todo: "Ab zur Startbahn!" },
   { id: "tanken", label: "Betankung", color: "#f06a3c", todo: "Auftanken!" },
   { id: "gepaeck", label: "Gepäckdienst", color: "#3aa3e8", todo: "Gepäck einladen!" },
   { id: "enteisung", label: "Enteisung", color: "#33b36b", todo: "Schnee entfernen!" },

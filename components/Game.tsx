@@ -87,7 +87,7 @@ export default function Game() {
   const [hint, setHint] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"checkliste" | "help" | "reset" | "eltern" | null>(null);
+  const [panel, setPanel] = useState<"checkliste" | "help" | "reset" | "eltern" | "app" | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [scale, setScale] = useState(1);
   const [portrait, setPortrait] = useState(false);
@@ -101,14 +101,15 @@ export default function Game() {
   useEffect(() => saveGame(state), [state]);
   useEffect(() => setSound(state.sound), [state.sound]);
 
+  const safeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const fit = () => {
-      setScale(Math.min(window.innerWidth / W, window.innerHeight / H));
+    const safe = safeRef.current!;
+    const observer = new ResizeObserver(() => {
+      setScale(Math.min(safe.clientWidth / W, safe.clientHeight / H));
       setPortrait(window.innerHeight > window.innerWidth * 1.1);
-    };
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    });
+    observer.observe(safe);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -378,167 +379,174 @@ export default function Game() {
 
   return (
     <div className="viewport">
-      <div className="stage" style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>
-        <Night.Provider value={!!state.night}>{renderScene()}</Night.Provider>
+      <div className="safe" ref={safeRef}>
+        <div className="stage" style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>
+          <Night.Provider value={!!state.night}>{renderScene()}</Night.Provider>
 
-        {screen !== "title" && (
-          <>
-            <nav className="toolbar" aria-label="Werkzeuge">
-              {TOOLS.map((t) => {
-                const needed = t.id === "checkliste" ? 0 : state.planes.filter((p) =>
-                  t.id === "einwinker" ? p.stage === "einwinken" : t.id === "pushback" ? readyForPushback(p, state.season) : t.id === "start" ? p.stage === "abflug" : openTasks(p, state.season).includes(t.id as TaskId),
-                ).length;
-                return (
+          {screen !== "title" && (
+            <>
+              <nav className="toolbar" aria-label="Werkzeuge">
+                {TOOLS.map((t) => {
+                  const needed = t.id === "checkliste" ? 0 : state.planes.filter((p) =>
+                    t.id === "einwinker" ? p.stage === "einwinken" : t.id === "pushback" ? readyForPushback(p, state.season) : t.id === "start" ? p.stage === "abflug" : openTasks(p, state.season).includes(t.id as TaskId),
+                  ).length;
+                  return (
+                    <RoundButton
+                      key={t.id}
+                      icon={t.id}
+                      size={84}
+                      label={t.label}
+                      color={t.color}
+                      active={screen === t.id}
+                      dim={t.id === "enteisung" && state.season === "sommer"}
+                      badge={needed || undefined}
+                      onClick={() => openTool(t.id)}
+                    />
+                  );
+                })}
+              </nav>
+
+              <div className="topbar">
+                {state.planes.map((p) => (
                   <RoundButton
-                    key={t.id}
-                    icon={t.id}
+                    key={p.id}
+                    icon="checkliste"
+                    label={`Checkliste Flug ${p.flightNo}`}
+                    color={GATE_COLORS[p.gate]}
                     size={84}
-                    label={t.label}
-                    color={t.color}
-                    active={screen === t.id}
-                    dim={t.id === "enteisung" && state.season === "sommer"}
-                    badge={needed || undefined}
-                    onClick={() => openTool(t.id)}
+                    active={p.id === state.selected}
+                    badge={p.stage === "abfertigung" ? openJobs(p, state.season).length || "✓" : "!"}
+                    onClick={() => {
+                      sfx.click();
+                      dispatch({ type: "select", id: p.id });
+                      setPanel("checkliste");
+                    }}
                   />
-                );
-              })}
-            </nav>
-
-            <div className="topbar">
-              {state.planes.map((p) => (
-                <RoundButton
-                  key={p.id}
-                  icon="checkliste"
-                  label={`Checkliste Flug ${p.flightNo}`}
-                  color={GATE_COLORS[p.gate]}
-                  size={84}
-                  active={p.id === state.selected}
-                  badge={p.stage === "abfertigung" ? openJobs(p, state.season).length || "✓" : "!"}
-                  onClick={() => {
-                    sfx.click();
-                    dispatch({ type: "select", id: p.id });
-                    setPanel("checkliste");
-                  }}
-                />
-              ))}
-              {screen === "weltkarte" ? (
-                <Banner left={<b className="banner-title">Weltkarte</b>} right={<span>{state.log.length === 1 ? "1 Flug" : `${state.log.length} Flüge`} in die Welt geschickt!</span>} />
-              ) : (
-                <Banner
-                  left={
-                    headPlane && dest ? (
-                      <div className="flight">
-                        <div>
-                          <b>Flug {headPlane.flightNo}</b>
-                          <span>{inbound ? "aus" : "nach"} {dest.city} ({dest.iata})</span>
+                ))}
+                {screen === "weltkarte" ? (
+                  <Banner left={<b className="banner-title">Weltkarte</b>} right={<span>{state.log.length === 1 ? "1 Flug" : `${state.log.length} Flüge`} in die Welt geschickt!</span>} />
+                ) : (
+                  <Banner
+                    left={
+                      headPlane && dest ? (
+                        <div className="flight">
+                          <div>
+                            <b>Flug {headPlane.flightNo}</b>
+                            <span>{inbound ? "aus" : "nach"} {dest.city} ({dest.iata})</span>
+                          </div>
+                          <Flag code={dest.flag} height={30} />
                         </div>
-                        <Flag code={dest.flag} height={30} />
-                      </div>
-                    ) : (
-                      <b className="banner-title">Flughafen</b>
-                    )
-                  }
-                  right={<span>{hint ?? (paused ? `Mittagspause! Die Flugzeuge kommen in ${minutes(pauseLeft)} wieder.` : todoText(headPlane, state.season))}</span>}
-                />
-              )}
-            </div>
+                      ) : (
+                        <b className="banner-title">Flughafen</b>
+                      )
+                    }
+                    right={<span>{hint ?? (paused ? `Mittagspause! Die Flugzeuge kommen in ${minutes(pauseLeft)} wieder.` : todoText(headPlane, state.season))}</span>}
+                  />
+                )}
+              </div>
 
-            <div className="sidebar-right">
-              <button type="button" className="radar-btn" onClick={() => go("tower")} aria-label="Tower und Radar" title="Tower & Radar">
-                <MiniRadar count={state.planes.filter((p) => p.stage === "anflug").length} />
-              </button>
-              {screen !== "vorfeld" && <RoundButton icon="airport" label="Zurück zum Vorfeld" color="#3aa3e8" size={78} onClick={() => go("vorfeld")} />}
-              <RoundButton icon="globe" label="Weltkarte" color="#2fb7a8" size={78} active={screen === "weltkarte"} onClick={() => go("weltkarte")} />
-              <RoundButton
-                icon={state.season === "sommer" ? "snow" : "sun"}
-                label={state.season === "sommer" ? "Winter einschalten" : "Sommer einschalten"}
-                color={state.season === "sommer" ? "#6fb7e8" : "#ffb347"}
-                size={78}
-                onClick={() => {
-                  sfx.click();
-                  const season = state.season === "sommer" ? "winter" : "sommer";
-                  dispatch({ type: "season", season });
-                  showToast(season === "winter" ? "Es schneit! Flugzeuge müssen jetzt enteist werden." : "Sommer! Die Sonne scheint.");
-                }}
-              />
-              <RoundButton icon={state.sound ? "sound" : "mute"} label={state.sound ? "Ton aus" : "Ton an"} color="#9aa3ad" size={78} onClick={() => dispatch({ type: "sound", on: !state.sound })} />
-              <RoundButton icon="help" label="Hilfe" color="#f6c02c" size={78} onClick={() => { sfx.click(); setPanel("help"); }} />
-              {canFullscreen() && (
+              <div className="sidebar-right">
+                <button type="button" className="radar-btn" onClick={() => go("tower")} aria-label="Tower und Radar" title="Tower & Radar">
+                  <MiniRadar count={state.planes.filter((p) => p.stage === "anflug").length} />
+                </button>
+                {screen !== "vorfeld" && <RoundButton icon="airport" label="Zurück zum Vorfeld" color="#3aa3e8" size={78} onClick={() => go("vorfeld")} />}
+                <RoundButton icon="globe" label="Weltkarte" color="#2fb7a8" size={78} active={screen === "weltkarte"} onClick={() => go("weltkarte")} />
                 <RoundButton
-                  icon={fullscreen ? "fullscreen-exit" : "fullscreen"}
-                  label={fullscreen ? "Vollbild beenden" : "Vollbild"}
-                  color="#5b6779"
+                  icon={state.season === "sommer" ? "snow" : "sun"}
+                  label={state.season === "sommer" ? "Winter einschalten" : "Sommer einschalten"}
+                  color={state.season === "sommer" ? "#6fb7e8" : "#ffb347"}
                   size={78}
                   onClick={() => {
                     sfx.click();
-                    toggleFullscreen();
+                    const season = state.season === "sommer" ? "winter" : "sommer";
+                    dispatch({ type: "season", season });
+                    showToast(season === "winter" ? "Es schneit! Flugzeuge müssen jetzt enteist werden." : "Sommer! Die Sonne scheint.");
                   }}
                 />
-              )}
+                <RoundButton icon={state.sound ? "sound" : "mute"} label={state.sound ? "Ton aus" : "Ton an"} color="#9aa3ad" size={78} onClick={() => dispatch({ type: "sound", on: !state.sound })} />
+                <RoundButton icon="help" label="Hilfe" color="#f6c02c" size={78} onClick={() => { sfx.click(); setPanel("help"); }} />
+                {canFullscreen() && (
+                  <RoundButton
+                    icon={fullscreen ? "fullscreen-exit" : "fullscreen"}
+                    label={fullscreen ? "Vollbild beenden" : "Vollbild"}
+                    color="#5b6779"
+                    size={78}
+                    onClick={() => {
+                      sfx.click();
+                      toggleFullscreen();
+                    }}
+                  />
+                )}
+              </div>
+              {state.season === "winter" && screen !== "weltkarte" && screen !== "tower" && <Snowfall />}
+            </>
+          )}
+
+          {screen === "title" && (
+            <TitleCard
+              hasProgress={state.log.length > 0 || state.planes.some((p) => p.done.length > 0)}
+              sound={state.sound}
+              onSound={() => dispatch({ type: "sound", on: !state.sound })}
+              onPlay={() => go("vorfeld")}
+              onReset={() => setPanel("reset")}
+              onInstall={() => {
+                sfx.click();
+                setPanel("app");
+              }}
+            />
+          )}
+
+          {toast && (
+            <div className="toast" role="status">
+              <div className="toast-face" aria-hidden="true">
+                <Icon name="einwinker" size={52} />
+              </div>
+              <p>{toast}</p>
             </div>
-            {state.season === "winter" && screen !== "weltkarte" && screen !== "tower" && <Snowfall />}
-          </>
-        )}
+          )}
 
-        {screen === "title" && (
-          <TitleCard
-            hasProgress={state.log.length > 0 || state.planes.some((p) => p.done.length > 0)}
-            sound={state.sound}
-            onSound={() => dispatch({ type: "sound", on: !state.sound })}
-            onPlay={() => go("vorfeld")}
-            onReset={() => setPanel("reset")}
-          />
-        )}
-
-        {toast && (
-          <div className="toast" role="status">
-            <div className="toast-face" aria-hidden="true">
-              <Icon name="einwinker" size={52} />
-            </div>
-            <p>{toast}</p>
-          </div>
-        )}
-
-        {celebration && (
-          <Modal label={celebration.title}>
-            <Stars />
-            <h2>{celebration.title}</h2>
-            <p className="modal-text">{celebration.text}</p>
-            <div className="modal-actions">
-              {celebration.next.map((next, i) => (
-                <BigButton key={next} autoFocus={i === 0} icon={screenIcon(next)} color={celebration.next.length > 1 ? tool(next as ToolId).color : undefined} onClick={() => (next === "tower" ? go("tower", celebration.planeId) : next === "vorfeld" || next === "weltkarte" ? go(next) : openTool(next as ToolId, celebration.planeId))}>
-                  {nextLabel(next)}
+          {celebration && (
+            <Modal label={celebration.title}>
+              <Stars />
+              <h2>{celebration.title}</h2>
+              <p className="modal-text">{celebration.text}</p>
+              <div className="modal-actions">
+                {celebration.next.map((next, i) => (
+                  <BigButton key={next} autoFocus={i === 0} icon={screenIcon(next)} color={celebration.next.length > 1 ? tool(next as ToolId).color : undefined} onClick={() => (next === "tower" ? go("tower", celebration.planeId) : next === "vorfeld" || next === "weltkarte" ? go(next) : openTool(next as ToolId, celebration.planeId))}>
+                    {nextLabel(next)}
+                  </BigButton>
+                ))}
+                {celebration.stay && (
+                  <BigButton color="#2c7a52" icon="radar" onClick={() => go(celebration.stay!.screen)}>
+                    {celebration.stay.label}
+                  </BigButton>
+                )}
+                <BigButton color="#3aa3e8" icon="airport" onClick={() => go("vorfeld")}>
+                  Zum Vorfeld
                 </BigButton>
-              ))}
-              {celebration.stay && (
-                <BigButton color="#2c7a52" icon="radar" onClick={() => go(celebration.stay!.screen)}>
-                  {celebration.stay.label}
-                </BigButton>
-              )}
-              <BigButton color="#3aa3e8" icon="airport" onClick={() => go("vorfeld")}>
-                Zum Vorfeld
-              </BigButton>
-            </div>
-          </Modal>
-        )}
+              </div>
+            </Modal>
+          )}
 
-        {panel === "checkliste" && selected && <Checklist plane={selected} state={state} onClose={() => setPanel(null)} onGo={(s) => (s === "tower" ? go("tower", selected.id) : openTool(s as ToolId, selected.id))} />}
-        {panel === "help" && <Help onClose={() => setPanel(null)} />}
-        {panel === "eltern" && paused && <ParentGate onClose={() => setPanel(null)} onSolved={() => startRound(Date.now())} />}
-        {panel === "reset" && (
-          <Modal label="Neues Spiel" onClose={() => setPanel(null)}>
-            <h2>Neues Spiel starten?</h2>
-            <p className="modal-text">Alle Flüge, Sticker und die Weltkarte fangen dann wieder von vorne an.</p>
-            <div className="modal-actions">
-              <BigButton color="#e8574a" onClick={() => { dispatch({ type: "reset" }); setPanel(null); go("vorfeld"); }}>
-                Ja, neu anfangen
-              </BigButton>
-              <BigButton color="#4cbb6c" autoFocus onClick={() => setPanel(null)}>
-                Nein, weiterspielen
-              </BigButton>
-            </div>
-          </Modal>
-        )}
+          {panel === "checkliste" && selected && <Checklist plane={selected} state={state} onClose={() => setPanel(null)} onGo={(s) => (s === "tower" ? go("tower", selected.id) : openTool(s as ToolId, selected.id))} />}
+          {panel === "help" && <Help onClose={() => setPanel(null)} />}
+          {panel === "eltern" && paused && <ParentGate onClose={() => setPanel(null)} onSolved={() => startRound(Date.now())} />}
+          {panel === "reset" && (
+            <Modal label="Neues Spiel" onClose={() => setPanel(null)}>
+              <h2>Neues Spiel starten?</h2>
+              <p className="modal-text">Alle Flüge, Sticker und die Weltkarte fangen dann wieder von vorne an.</p>
+              <div className="modal-actions">
+                <BigButton color="#e8574a" onClick={() => { dispatch({ type: "reset" }); setPanel(null); go("vorfeld"); }}>
+                  Ja, neu anfangen
+                </BigButton>
+                <BigButton color="#4cbb6c" autoFocus onClick={() => setPanel(null)}>
+                  Nein, weiterspielen
+                </BigButton>
+              </div>
+            </Modal>
+          )}
+          {panel === "app" && <InstallHint onClose={() => setPanel(null)} />}
+        </div>
       </div>
       {portrait && !ignorePortrait && (
         <div className="rotate-hint" role="alertdialog" aria-label="Gerät drehen">
@@ -727,7 +735,10 @@ function TitleBackdrop({ state }: { state: GameState }) {
   return <IsoWorld className="fill title-bg" season={state.season} camera={{ x: 120, y: 520, zoom: 0.7 }} planes={state.planes} drawables={drawables} label="Flughafen" />;
 }
 
-function TitleCard({ hasProgress, sound, onSound, onPlay, onReset }: { hasProgress: boolean; sound: boolean; onSound: () => void; onPlay: () => void; onReset: () => void }) {
+type TitleCardProps = { hasProgress: boolean; sound: boolean; onSound: () => void; onPlay: () => void; onReset: () => void; onInstall: () => void };
+
+function TitleCard({ hasProgress, sound, onSound, onPlay, onReset, onInstall }: TitleCardProps) {
+  const [installed] = useState(() => matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
   return (
     <div className="title-card">
       <svg className="title-plane" viewBox="0 0 64 64" aria-hidden="true">
@@ -751,6 +762,41 @@ function TitleCard({ hasProgress, sound, onSound, onPlay, onReset }: { hasProgre
       <button type="button" className="text-btn" onClick={onSound}>
         Ton: {sound ? "an" : "aus"}
       </button>
+      {!installed && (
+        <button type="button" className="text-btn" onClick={onInstall}>
+          Als App speichern
+        </button>
+      )}
     </div>
+  );
+}
+
+function InstallHint({ onClose }: { onClose: () => void }) {
+  const [device] = useState(() => {
+    const ua = navigator.userAgent;
+    // iPadOS reports itself as a Mac: only the touch points give it away
+    if (/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+    return /Android/.test(ua) ? "android" : "computer";
+  });
+  return (
+    <Modal label="Als App speichern" onClose={onClose}>
+      <h2>Als App speichern</h2>
+      {device === "ios" ? (
+        <p className="modal-text install-step">
+          <svg viewBox="0 0 40 48" width="40" height="48" aria-hidden="true" fill="none" stroke="#2f7fe0" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14,18 H8 V44 H32 V18 H26 M20,30 V4 M12,12 L20,4 L28,12" />
+          </svg>
+          <span>Tippe unten auf Teilen. Wähle dann „Zum Home-Bildschirm“.</span>
+        </p>
+      ) : (
+        <p className="modal-text">{device === "android" ? "Tippe oben rechts auf das Menü. Wähle dann „App installieren“." : "Klicke in der Adressleiste auf das Symbol zum Installieren."}</p>
+      )}
+      <p className="modal-sub">Die App funktioniert auch ohne Internet. Dein Spiel aus dem Browser wird nicht übernommen.</p>
+      <div className="modal-actions">
+        <BigButton autoFocus onClick={onClose}>
+          Alles klar
+        </BigButton>
+      </div>
+    </Modal>
   );
 }

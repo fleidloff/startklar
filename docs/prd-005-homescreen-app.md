@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | Teilweise umgesetzt: Anforderung 4 und 5 (Spielen ohne Netz, neue Versionen) |
+| Status | Umgesetzt. Offen ist nur die Prüfung auf echten Geräten (Abschnitt 5). |
 | Stand | 7. November 2026 |
 | Anlass | Frage: Kann man die Web-App einfach als PWA auf den Home-Bildschirm legen? |
-| Betroffene Dateien | `app/manifest.webmanifest`, `app/layout.tsx`, `app/globals.css`, `public/` (neue Icons), `components/ClientGame.tsx`, `scripts/build-sw.mjs`, `scripts/build-sw.test.mjs`, `package.json` |
+| Betroffene Dateien | `app/manifest.webmanifest`, `app/layout.tsx`, `app/globals.css`, `app/apple-icon.png`, `public/` (neue Icons), `components/Game.tsx`, `components/ClientGame.tsx`, `scripts/build-sw.mjs`, `scripts/build-sw.test.mjs`, `package.json` |
 
 ## 1. Problem
 
@@ -52,11 +52,10 @@ Eltern legen das Spiel mit wenigen Schritten auf den Home-Bildschirm. Von dort s
 ### Anforderung 1: Icons für alle Geräte
 
 - Aus dem bestehenden Flugzeug-Icon entstehen PNG-Dateien in `public/`:
-  - `apple-touch-icon.png`, 180 × 180 Pixel, ohne runde Ecken (iOS rundet selbst), ohne Transparenz.
+  - `app/apple-icon.png`, 180 × 180 Pixel, ohne runde Ecken (iOS rundet selbst), ohne Transparenz. Next.js setzt daraus den Link `apple-touch-icon` mit dem richtigen `basePath`, wie bei `app/icon.svg`.
   - `icon-192.png` und `icon-512.png` für das Manifest.
   - `icon-maskable-512.png` mit 20 % Rand in der Hintergrundfarbe, für Android.
 - Das Manifest listet SVG, beide PNGs und das Maskable-Icon mit `"purpose": "maskable"`.
-- `app/layout.tsx` setzt `icons.apple` auf `apple-touch-icon.png`. Der Pfad muss mit dem `basePath` von GitHub Pages funktionieren.
 - Die PNGs liegen fertig im Repository. Sie entstehen nicht bei jedem Build.
 
 ### Anforderung 2: Start wie eine App
@@ -69,7 +68,7 @@ Eltern legen das Spiel mit wenigen Schritten auf den Home-Bildschirm. Von dort s
 ### Anforderung 3: Sichere Ränder
 
 - Werkzeugleiste, Banner, Fenster und Knöpfe halten Abstand mit `env(safe-area-inset-top|right|bottom|left)`.
-- Der Hintergrund und die Spielwelt gehen bis an den Rand. Nur Bedienelemente rücken ein.
+- Der Hintergrund geht bis an den Rand. Die Spielfläche (`.stage`) passt sich in den sicheren Bereich ein. Sie hat schon heute Ränder, weil ihr Seitenverhältnis fest ist.
 - `100vh` wird `100dvh`.
 
 **Abnahme:** Auf einem iPhone mit Kamera-Aussparung im Querformat (links und rechts gedreht) liegt kein Knopf unter der Aussparung oder dem Home-Balken.
@@ -102,7 +101,7 @@ Eltern legen das Spiel mit wenigen Schritten auf den Home-Bildschirm. Von dort s
 
 ### Anforderung 7: Hinweis für Eltern
 
-- Im Spiel gibt es einen kleinen Knopf „Als App speichern“. Er ist nur sichtbar, wenn das Spiel im Browser läuft (`display-mode` ist nicht `standalone` oder `fullscreen`, und `navigator.standalone` ist nicht `true`).
+- Auf dem Startbildschirm gibt es einen kleinen Text-Knopf „Als App speichern“, neben „Ton: an“. Kinder tippen dort selten. Er ist nur sichtbar, wenn das Spiel im Browser läuft (`display-mode` ist nicht `standalone` oder `fullscreen`, und `navigator.standalone` ist nicht `true`).
 - Antippen öffnet ein Fenster mit den Schritten für das Gerät:
   - iPhone und iPad: „Tippe unten auf Teilen. Wähle dann ‚Zum Home-Bildschirm‘.“ Mit Bild des Teilen-Symbols.
   - Android: „Tippe oben rechts auf das Menü. Wähle dann ‚App installieren‘.“

@@ -7,7 +7,7 @@
     "build": "next build && node scripts/build-sw.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test game/ scripts/",
+    "test": "node --test \"game/**/*.test.*\" \"scripts/**/*.test.*\"",
     "dev:http": "next dev"
   },
   "dependencies": {

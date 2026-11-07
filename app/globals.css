@@ -34,7 +34,7 @@ button {
 .loading {
   display: grid;
   place-items: center;
-  height: 100vh;
+  height: 100dvh;
   font-size: 32px;
   font-weight: 700;
   color: #fff;
@@ -50,6 +50,11 @@ button {
   -webkit-user-select: none;
 }
 
+.safe {
+  position: absolute;
+  inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
 .stage {
   position: absolute;
   left: 50%;
@@ -57,7 +62,7 @@ button {
   width: 1600px;
   height: 1000px;
   transform-origin: center;
-  overflow: hidden;
+  overflow: clip;
   background: #8ccf55;
   box-shadow: 0 0 0 4px var(--ink);
 }
@@ -893,13 +898,25 @@ text {
 }
 
 .text-btn {
-  margin-top: 16px;
+  margin: 16px 14px 0;
   background: none;
   border: none;
   font-size: 22px;
   text-decoration: underline;
   cursor: pointer;
   color: #5b6779;
+}
+
+.install-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: left;
+}
+
+.install-step svg {
+  flex-shrink: 0;
 }
 
 .rotate-hint {
@@ -911,7 +928,7 @@ text {
   align-items: center;
   justify-content: center;
   gap: 20px;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: #8fd0f5;
   text-align: center;
   font-size: 28px;

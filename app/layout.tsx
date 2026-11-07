@@ -8,7 +8,7 @@ const fredoka = Fredoka({ subsets: ["latin"], weight: ["400", "500", "600", "700
 export const metadata: Metadata = {
   title: "Flughafen-Manager: Startklar!",
   description: "Ein entspanntes Flughafen-Spiel für Kinder: Flugzeuge landen, abfertigen und in die Welt schicken.",
-  appleWebApp: { capable: true, title: "Startklar!" },
+  appleWebApp: { capable: true, title: "Startklar!", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

@@ -164,6 +164,8 @@ export function freeGates(state: GameState) {
   return [...Array(GATES).keys()].filter((g) => !state.planes.some((p) => p.gate === g));
 }
 
+export const isLongHaul = (d: { lat: number; lon: number }) => distanceKm(HOME.lat, HOME.lon, d.lat, d.lon) > 3000;
+
 export function createPlane(state: GameState, rnd: () => number): Plane | null {
   const gates = freeGates(state);
   if (gates.length === 0) return null;
@@ -171,8 +173,7 @@ export function createPlane(state: GameState, rnd: () => number): Plane | null {
   const post = !!state.night?.post;
   const busy = new Set(state.planes.map((p) => p.dest));
   const dest = pick(DESTINATIONS.filter((d) => !busy.has(d.id) && (!post || COUNTRIES[d.flag].continent === "Europa")));
-  const longHaul = distanceKm(HOME.lat, HOME.lon, dest.lat, dest.lon) > 3000;
-  const type = post ? aircraft("B737F") : pick(AIRCRAFT.filter((a) => a.longHaul === longHaul && !a.freighter));
+  const type = post ? aircraft("B737F") : pick(AIRCRAFT.filter((a) => a.longHaul === isLongHaul(dest) && !a.freighter));
   const used = new Set(state.planes.map((p) => p.flightNo));
   let flightNo = "";
   do flightNo = `${post ? "Post" : pick(AIRLINES)} ${100 + Math.floor(rnd() * 900)}`;

@@ -93,13 +93,16 @@ export function WorldMap({ state }: { state: GameState }) {
             </g>
           );
         })}
-        <g transform={`translate(${home[0]},${home[1]})`}>
-          <circle r={13} fill="#e8574a" stroke="#fff" strokeWidth={4} />
-          <path d="M0,-7 L2,-2 L7,-2 L3,1 L5,6 L0,3 L-5,6 L-3,1 L-7,-2 L-2,-2 Z" fill="#fff" />
-        </g>
-        <g transform={`translate(${home[0] - 140},${home[1] + 22})`}>
-          <rect width={130} height={28} rx={8} fill="#e8574a" stroke={OUT} strokeWidth={2} />
-          <text x={65} y={19} textAnchor="middle" fontSize={15} fontWeight={700} fill="#fff">Unser Flughafen</text>
+        <g role="img" aria-label={`Unser Flughafen: ${HOME.name}`}>
+          <g transform={`translate(${home[0]},${home[1]})`}>
+            <circle r={13} fill="#e8574a" stroke="#fff" strokeWidth={4} />
+            <path d="M0,-7 L2,-2 L7,-2 L3,1 L5,6 L0,3 L-5,6 L-3,1 L-7,-2 L-2,-2 Z" fill="#fff" />
+          </g>
+          <g transform={`translate(${home[0] - 140},${home[1] + 22})`} aria-hidden="true">
+            <rect width={130} height={44} rx={8} fill="#e8574a" stroke={OUT} strokeWidth={2} />
+            <text x={65} y={21} textAnchor="middle" fontSize={18} fontWeight={800} fill="#fff">{HOME.name}</text>
+            <text x={65} y={37} textAnchor="middle" fontSize={12} fontWeight={600} fill="#fff">Unser Flughafen</text>
+          </g>
         </g>
       </svg>
 

@@ -1,41 +1,36 @@
-# PRD 008: Kleinigkeiten bei Nacht, Schnee und Landung, Flughafen Hamburg
+# PRD 008: Kleinigkeiten bei Nacht und Schnee, Flughafen Hamburg
 
 | | |
 |---|---|
-| Status | Entwurf, noch nicht umgesetzt |
+| Status | Umgesetzt |
 | Stand | 7. November 2026 |
-| Anlass | Beim Spielen aufgefallen: Mond und Lichter der Startbahn sind vor dem Flugzeug. Im Tower schneit es. Ein zweites Flugzeug kann landen, bevor das erste eingewunken ist. Bei Nacht liegt das Licht des Terminals über den Gate-Schildern. Dazu ein Wunsch: Unser Flughafen ist Hamburg, und das darf am Gebäude stehen. |
-| Betroffene Dateien | `components/art.tsx`, `components/World.tsx`, `components/scenes/Takeoff.tsx`, `components/scenes/Marshaller.tsx`, `components/scenes/Tower.tsx`, `components/Game.tsx`, `components/scenes/WorldMap.tsx`, `app/globals.css`, `game/data.ts`, `game/state.ts`, `game/state.test.ts` |
+| Anlass | Beim Spielen aufgefallen: Mond und Lichter der Startbahn sind vor dem Flugzeug. Im Tower schneit es. Bei Nacht liegt das Licht des Terminals über den Gate-Schildern. Dazu ein Wunsch: Unser Flughafen ist Hamburg, und das darf am Gebäude stehen. |
+| Betroffene Dateien | `components/art.tsx`, `components/World.tsx`, `components/scenes/Takeoff.tsx`, `components/scenes/Tower.tsx`, `components/scenes/Apron.tsx`, `components/scenes/WorldMap.tsx`, `components/Game.tsx`, `components/ui.tsx`, `game/data.ts`, `game/state.ts`, `game/state.test.ts` |
 
 ## 1. Problem
 
-Vier kleine Fehler stören das Bild vom echten Flughafen. Dazu kommt ein Wunsch.
+Drei kleine Fehler stören das Bild vom echten Flughafen. Dazu kommt ein Wunsch.
 
 - Bei Nacht sind Mond, Sterne und die Lichter der Startbahn vor dem startenden Flugzeug. Das Flugzeug sieht aus, als ob es hinter dem Mond fliegt.
 - Im Winter schneit es auch im Tower. Der Tower ist ein Raum mit Fenstern. Dort drin schneit es nicht.
-- Im Tower kann das Kind ein zweites Flugzeug landen lassen, obwohl das erste noch nicht eingewunken ist. Dann stehen zwei Flugzeuge auf der Rollbahn. Das sieht aus wie ein Unfall. Auch an einem echten Flughafen ist das gefährlich.
 - Bei Nacht liegt das gelbe Licht aus den Fenstern des Terminals über den Gate-Schildern. Die Schilder sind dann blass und schlecht zu lesen.
 - Der Flughafen hat keinen Namen. Auf der Weltkarte heißt er nur „Unser Flughafen“. Die Lage auf der Karte ist heute Frankfurt. Der Flughafen soll Hamburg sein.
 
 ## 2. Ursache
 
-Drei der vier Fehler haben dieselbe Ursache. Jedes Licht der Nacht kommt über `<Lamp>` in eine einzige Ebene. Diese Ebene liegt über allem anderen in der Szene. Darum sind Mond, Sterne, Lichter am Boden und das Licht des Terminals immer ganz vorne. Die Reihenfolge der Tiefe gilt für Lichter nicht.
+Zwei der drei Fehler haben dieselbe Ursache. Jedes Licht der Nacht kommt über `<Lamp>` in eine einzige Ebene. Diese Ebene liegt über allem anderen in der Szene. Darum sind Mond, Sterne, Lichter am Boden und das Licht des Terminals immer ganz vorne. Die Reihenfolge der Tiefe gilt für Lichter nicht.
 
 Der Schnee ist eine Ebene über dem ganzen Spiel. Nur die Weltkarte hat keinen Schnee. Der Tower ist nicht ausgenommen.
-
-Der Tower prüft beim Landen nicht, ob schon ein Flugzeug auf das Einwinken wartet.
 
 Die Lage des Flughafens steht in `HOME` in `game/data.ts`. Der Name „Unser Flughafen“ steht dort und ein zweites Mal fest im Text der Weltkarte.
 
 ## 3. Ziel
 
-Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch hinten zu sehen. Schnee gibt es nur draußen. Es landet immer nur ein Flugzeug nach dem anderen. Das Kind weiß, dass es in Hamburg spielt.
+Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch hinten zu sehen. Schnee gibt es nur draußen. Das Kind weiß, dass es in Hamburg spielt.
 
 **Erfolgskriterien**
 - Kein Licht ist vor einem Ding, das in Wirklichkeit davor steht.
 - Im Tower fällt Schnee nur hinter den Fenstern.
-- Es steht nie mehr als ein Flugzeug auf der Rollbahn und wartet auf das Einwinken.
-- Das Kind versteht ohne Erklärung, warum ein Flugzeug gerade nicht landen darf.
 - Die Gate-Schilder sind bei Nacht so gut zu lesen wie am Tag.
 - Das Kind liest „Hamburg“ am Terminal und auf der Weltkarte.
 - Die Kamera auf dem Vorfeld bleibt bei Nacht so flüssig wie heute.
@@ -44,7 +39,7 @@ Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch
 ## 4. Nicht-Ziele
 
 - Keine neuen Lichter und keine neue Grafik.
-- Keine echten Regeln für Abstände zwischen Flugzeugen. Es gibt nur eine Regel: erst einwinken, dann landen.
+- Keine Regel für Abstände zwischen Flugzeugen. Das Kind entscheidet, wann ein Flugzeug landet.
 - Kein Schnee in anderen Räumen. Außer dem Tower gibt es heute keinen Raum.
 - Kein Logo und kein echter Schriftzug des Hamburger Flughafens. Kein Nachbau echter Gebäude.
 - Der Name des Spiels bleibt „Flughafen-Manager: Startklar!“.
@@ -87,26 +82,7 @@ Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch
 - Der Schnee bewegt sich wie heute. Mit „Bewegung reduzieren“ verhält er sich auch wie heute.
 - In allen anderen Szenen bleibt der Schnee wie heute.
 
-### Anforderung 6: Eine Landung nach der anderen
-
-- Ein Flugzeug darf nur landen, wenn kein anderes Flugzeug gerade landet und keines auf das Einwinken wartet.
-- Die anderen Flugzeuge bleiben auf dem Radar in der Warteschleife. Sie kreisen wie heute.
-- In dieser Zeit zeigt der Radar keine Hand mit Hinweis.
-- Will das Kind trotzdem eine Linie von einem wartenden Flugzeug ziehen, beginnt keine Linie. Es kommt der Ton für „falsch“, und die Leiste sagt: „Warte! Erst muss Flug LH 412 eingewunken werden.“ Die Flugnummer ist die des Flugzeugs auf der Rollbahn.
-- Landet gerade ein Flugzeug, sagt die Leiste: „Warte! Flug LH 412 landet gerade.“
-- Ist das Flugzeug eingewunken, darf das nächste landen. Die Leiste zeigt wieder den normalen Hinweis.
-- Der Knopf zum Einwinken bleibt wie heute. So findet das Kind den Weg.
-- Bildschirmleser lesen den Text der Leiste.
-- Die Regel gilt auch im Spielstand: Die Aktion zum Landen ändert nichts, wenn schon ein anderes Flugzeug auf das Einwinken wartet.
-- Ein alter Spielstand kann schon zwei Flugzeuge beim Einwinken haben. Er lädt ohne Änderung. Das nächste Flugzeug landet erst, wenn beide eingewunken sind.
-- Das Postflugzeug der Nacht folgt derselben Regel.
-
-**Abnahme:** Tests in `game/state.test.ts` prüfen:
-- Wartet kein Flugzeug auf das Einwinken, landet ein Flugzeug.
-- Wartet ein Flugzeug auf das Einwinken, bleibt ein zweites Flugzeug im Anflug.
-- Nach dem Einwinken des ersten Flugzeugs landet das zweite.
-
-### Anforderung 7: Unser Flughafen ist Hamburg
+### Anforderung 6: Unser Flughafen ist Hamburg
 
 - `HOME` in `game/data.ts` liegt bei Hamburg: Breite 53,63, Länge 9,99.
 - `HOME` hat den Namen „Hamburg“. Die Weltkarte nimmt den Namen aus `HOME` und schreibt ihn nicht selbst.
@@ -128,7 +104,6 @@ Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch
 - Die eine Ebene für Lichter reicht nicht. Lichter brauchen eine Tiefe wie alle anderen Dinge. Ein möglicher Weg: Dinge vor einem Licht schneiden ihre Form aus der Ebene der Lichter aus. `Cover` und `Bright` in `components/art.tsx` machen das heute schon für den Schatten der Nacht.
 - Der Mond in `Takeoff.tsx` und die Sterne brauchen vielleicht keine Lampe. Sie können ganz hinten liegen und einfach nicht abgedunkelt werden.
 - Für den Schnee im Tower kann der Himmel in eine eigene Ebene unter dem Schnee. Fenster, Rahmen und Pult liegen darüber.
-- Die Regel für die Landung gehört einmal in `game/state.ts`. Der Tower fragt sie dort ab und rechnet sie nicht selbst nach.
 - Für die Schrift am Terminal gibt es `FaceText` in `components/art.tsx`. Die Gate-Schilder nutzen es schon.
 
 ## 7. Prüfung
@@ -138,8 +113,6 @@ Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch
 - Bei Nacht die Gate-Schilder ansehen und nah heranzoomen. Sie sind hell und gut zu lesen.
 - Bei Nacht jedes Mini-Spiel und das Einwinken öffnen und auf Lichter vor Dingen achten.
 - Im Winter den Tower öffnen. Schnee fällt nur hinter den Fenstern.
-- Ein Flugzeug landen und nicht einwinken. Ein zweites Flugzeug kann nicht landen, und die Leiste sagt warum. Nach dem Einwinken kann es landen.
-- Während einer Landung ein zweites Flugzeug ziehen. Es kann nicht landen.
 - Das Vorfeld bei Tag und bei Nacht ansehen. „FLUGHAFEN HAMBURG“ steht auf dem Terminal und ist gut zu lesen.
 - Ein Flugzeug starten. Auf dem Terminal im Hintergrund steht Hamburg.
 - Die Weltkarte öffnen. Der Stern liegt bei Hamburg, und das Schild sagt „Hamburg“.
@@ -149,8 +122,7 @@ Bei Nacht sind alle Dinge in der richtigen Reihenfolge: Was hinten ist, ist auch
 
 ## 8. Entschieden
 
-- Auch während einer Landung darf kein zweites Flugzeug landen. Beide würden sonst gleich danach zusammen auf der Rollbahn stehen.
-- Die Flugzeuge kreisen in der Warteschleife. So ist es auch an echten Flughäfen.
+- Es gibt keine Sperre für die Landung. Das Kind darf weitere Flugzeuge landen lassen, auch wenn ein anderes noch auf das Einwinken wartet. Die Kontrolle liegt beim Kind. Eine Sperre war zuerst geplant und umgesetzt, wurde dann aber wieder entfernt.
 - Die Lichtkegel der Masten dürfen auf Flugzeugen liegen. Das ist richtig, denn die Masten beleuchten die Flugzeuge.
 - Die Lichter am vorderen Rand der Startbahn dürfen vor dem Flugzeug sein. Sie stehen näher am Betrachter.
 - Am Terminal steht „Flughafen Hamburg“ und nicht „Hamburg Airport“. Das Spiel ist auf Deutsch, und ein echter Schriftzug wird nicht nachgebaut.

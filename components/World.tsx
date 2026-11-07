@@ -1,8 +1,8 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
-import { BaggageCart, Box, Cone, Cylinder, FaceText, Glow, LIGHT, Lamp, Lights, OUT, Person, Plane, Tug, Wheel, Detail, local, type Drawable } from "./art";
-import { P, arc, gateY, pts, shade, viewBox, type Pt } from "@/game/iso";
+import { BaggageCart, Box, Cone, Cylinder, FaceText, Front, Glow, LIGHT, Lamp, Lights, OUT, Person, Plane, Sock, Tug, Wheel, Detail, local, useWind, type Drawable } from "./art";
+import { K, P, arc, gateY, pts, shade, viewBox, type Pt } from "@/game/iso";
 import type { Plane as PlaneT, Season } from "@/game/state";
-import { aircraft } from "@/game/data";
+import { HOME, aircraft } from "@/game/data";
 
 const poly = (list: [number, number][], z = 0) => pts(list.map(([x, y]) => P(x, y, z)));
 
@@ -108,7 +108,7 @@ const GROUND_LIGHTS: [string, Pt[]][] = [
 
 function GroundLights() {
   return (
-    <Lamp>
+    <Lamp back>
       <g strokeLinecap="round" fill="none">
         {GROUND_LIGHTS.map(([color, list], i) => (
           <g key={i}>
@@ -146,6 +146,30 @@ function Mast({ x, y }: { x: number; y: number }) {
 }
 
 const MASTS = [-4, 59, 117, 175].map((y) => ({ key: `mast${y}`, depth: 0.8 + y, node: <Mast x={0.8} y={y} /> }));
+
+const SOCK_H = 11;
+const SOCK_L = 7.5;
+
+/** wind sock beside the runway; it points where the wind blows to and droops when the wind is weak */
+function Windsock({ x, y }: { x: number; y: number }) {
+  const { angle, strength } = useWind();
+  const droop = (1 - strength) * 1.1;
+  const reach = Math.cos(droop) * SOCK_L;
+  const dx = Math.cos(angle) * reach;
+  const dy = Math.sin(angle) * reach;
+  const sock = <Sock a={P(x, y, SOCK_H)} b={P(x + dx, y + dy, SOCK_H - Math.sin(droop) * SOCK_L)} r0={1.2 * K} r1={0.6 * K} />;
+  const away = dx + dy < 0;
+  return (
+    <g>
+      {away && sock}
+      <Cylinder x={x} y={y} z0={0} z1={SOCK_H + 0.6} r={0.28} color="#9aa3ad" />
+      {!away && sock}
+      <Glow at={P(x, y, SOCK_H + 0.8)} r={1.6} color={LIGHT.red} />
+    </g>
+  );
+}
+
+const WINDSOCKS = [[144, -88], [144, 236]].map(([x, y]) => ({ key: `sock${y}`, depth: x + y, node: <Windsock x={x} y={y} /> }));
 
 function SnowPiles() {
   const piles: [number, number, number][] = [[64, -20, 3], [64, 60, 4], [64, 150, 3], [98, 40, 3], [98, 180, 4], [140, 10, 5], [-4, 210, 4]];
@@ -214,23 +238,34 @@ function Terminal({ season }: { season: Season }) {
         }
       </Box>
       <Box x={-9} y={95} l={19} w={291} h={0.9} z={11} color="#c3ccd6" top={winter ? "#ffffff" : "#9aa6b3"} />
-      <Lamp>
+      {signs}
+      <Lamp back>
         <polygon points={pts([P(0, -47, 2), P(0, 237, 2), P(0, 237, 9.5), P(0, -47, 9.5)])} fill="#ffeeb0" opacity={0.65} />
+        {signs}
       </Lamp>
-      {[0, 1, 2].map((g) => {
-        const y = gateY(g);
-        const a = P(0.2, y + 6, 10.4);
-        return (
-          <g key={g}>
-            <polygon points={pts([P(0.2, y + 14, 8.4), P(0.2, y - 2, 8.4), P(0.2, y - 2, 12.8), P(0.2, y + 14, 12.8)])} fill="#f6c02c" stroke={OUT} strokeWidth={2.8} strokeLinejoin="round" />
-            <polygon points={pts([P(0.2, y + 13.2, 8.9), P(0.2, y - 1.2, 8.9), P(0.2, y - 1.2, 9.4), P(0.2, y + 13.2, 9.4)])} fill="#d9a520" />
-            <FaceText at={[a[0], a[1] + 9]} heading={Math.PI / 2} size={26}>{`Gate ${g + 1}`}</FaceText>
-          </g>
-        );
-      })}
     </g>
   );
 }
+
+/** the airport name on the roof and the gate signs light up at night, like real signs */
+const signs = (
+  <g>
+    <FaceText at={P(-9, 95, 11.9)} heading={Math.PI / 2} size={64} fill="#f6c02c" stroke={OUT}>
+      {`FLUGHAFEN ${HOME.name.toUpperCase()}`}
+    </FaceText>
+    {[0, 1, 2].map((g) => {
+      const y = gateY(g);
+      const a = P(0.2, y + 6, 10.4);
+      return (
+        <g key={g}>
+          <polygon points={pts([P(0.2, y + 14, 8.4), P(0.2, y - 2, 8.4), P(0.2, y - 2, 12.8), P(0.2, y + 14, 12.8)])} fill="#f6c02c" stroke={OUT} strokeWidth={2.8} strokeLinejoin="round" />
+          <polygon points={pts([P(0.2, y + 13.2, 8.9), P(0.2, y - 1.2, 8.9), P(0.2, y - 1.2, 9.4), P(0.2, y + 13.2, 9.4)])} fill="#d9a520" />
+          <FaceText at={[a[0], a[1] + 9]} heading={Math.PI / 2} size={26}>{`Gate ${g + 1}`}</FaceText>
+        </g>
+      );
+    })}
+  </g>
+);
 
 function Tower({ season }: { season: Season }) {
   const x = 14;
@@ -238,10 +273,10 @@ function Tower({ season }: { season: Season }) {
   const winter = season === "winter";
   return (
     <g>
+      <Cylinder x={x} y={y} z0={0} z1={26} r={2.6} color="#e9edf2" />
       <Box x={x + 12} y={y + 2} l={14} w={18} h={5} color="#dfe5ec" top={winter ? "#ffffff" : "#b8c2cc"}>
         {(f) => <polygon points={pts([f.at(0.1, 1.5), f.at(0.9, 1.5), f.at(0.9, 3.8), f.at(0.1, 3.8)])} fill="#7cc4ec" stroke={OUT} strokeWidth={1.6} />}
       </Box>
-      <Cylinder x={x} y={y} z0={0} z1={26} r={2.6} color="#e9edf2" />
       <Cylinder x={x} y={y} z0={26} z1={27.5} r={5} color="#c9d2dc" />
       <Cylinder x={x} y={y} z0={27.5} z1={31.5} r={5.2} color="#5c86ad" top="#8fb7d8" />
       {(() => {
@@ -430,9 +465,11 @@ const WorldContent = memo(function WorldContent({ season, items, under }: { seas
       <GroundLights />
       {under}
       <Terminal season={season} />
-      {items.map((d) => (
-        <g key={d.key}>{d.node}</g>
-      ))}
+      <Front>
+        {items.map((d) => (
+          <g key={d.key}>{d.node}</g>
+        ))}
+      </Front>
     </>
   );
 });
@@ -462,7 +499,7 @@ export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, un
       if (showProps) list.push(...propsForGate(g, season));
     }
     list.push({ key: "tower", depth: -40, node: <Tower season={season} /> });
-    list.push(...MASTS);
+    list.push(...MASTS, ...WINDSOCKS);
     return list.sort((a, b) => a.depth - b.depth);
   }, [drawables, planes, docked, ownBridge, showProps, season]);
 

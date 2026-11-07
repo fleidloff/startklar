@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { LIGHT, Lamp, Lights, OUT, SIDE_MAIN_GEAR_X, SidePlane, useLit } from "../art";
+import { Front, LIGHT, Lamp, Lights, OUT, SIDE_MAIN_GEAR_X, SidePlane, Sock, useLit, useWind } from "../art";
 import { Hand } from "./Tower";
-import { aircraft, destination } from "@/game/data";
+import { HOME, aircraft, destination } from "@/game/data";
 import { capture, clamp, svgPoint } from "@/game/iso";
 import { sfx, startLoop, stopLoop } from "@/game/sound";
 
@@ -144,13 +144,14 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
         <Lights>
         <rect width={1600} height={1000} fill="url(#tsky)" />
         {!lit && <circle cx={1180} cy={190 + view.alt * 0.2} r={60} fill="#ffe27a" stroke={OUT} strokeWidth={4} />}
-        <Lamp>
+        <Lamp back>
           <g fill="#fff8d8">
             {STARS.map(([x, y, r]) => <circle key={x} cx={x} cy={y + view.alt * 0.1} r={r} />)}
           </g>
           <path d={`M1180,${140 + view.alt * 0.2} A50,50 0 1 0 1180,${240 + view.alt * 0.2} A34,50 0 1 1 1180,${140 + view.alt * 0.2} Z`} fill="#fff4c2" />
         </Lamp>
 
+        <Front>
         {CLOUDS.map(([x, y, s], i) => {
           const cx = ((((x - view.scroll * 0.12 * s) % 2000) + 2000) % 2000) - 200;
           return (
@@ -159,6 +160,7 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
             </g>
           );
         })}
+        </Front>
 
         <g transform={`translate(0,${view.alt * 0.7})`}>
           {[0, 1, 2].map((i) => {
@@ -171,12 +173,14 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
           <g transform={`translate(${1250 - view.scroll * 0.6},0)`}>
             <rect x={0} y={560} width={380} height={130} rx={6} fill="#d9dfe6" stroke={OUT} strokeWidth={4} />
             <rect x={20} y={585} width={340} height={45} rx={4} fill="#7cc4ec" stroke={OUT} strokeWidth={3} />
+            {airportName}
             <rect x={420} y={420} width={36} height={270} fill="#fff" stroke={OUT} strokeWidth={4} />
             <path d="M392,380 H484 L470,430 H406 Z" fill="#5c86ad" stroke={OUT} strokeWidth={4} strokeLinejoin="round" />
             <rect x={398} y={365} width={80} height={16} rx={4} fill="#fff" stroke={OUT} strokeWidth={4} />
             {winter && <path d="M0,560 q190,-30 380,0 Z" fill="#fff" stroke="#c4dcef" strokeWidth={3} />}
           </g>
           <rect x={0} y={680} width={1600} height={500} fill={winter ? "#eef5fb" : "#8ccf55"} />
+          <Windsock x={((((1500 - view.scroll) % 2400) + 2400) % 2400) - 400} />
           <rect x={0} y={720} width={1600} height={100} fill="#5c6168" stroke={OUT} strokeWidth={4} />
           <line x1={0} y1={732} x2={1600} y2={732} stroke="#fff" strokeWidth={4} />
           <line x1={0} y1={808} x2={1600} y2={808} stroke="#fff" strokeWidth={4} />
@@ -185,22 +189,23 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
             const x = ((((i * 200 - view.scroll) % 2000) + 2000) % 2000) - 200;
             return <circle key={i} cx={x} cy={726} r={6} fill="#ffd23a" stroke={OUT} strokeWidth={2} />;
           })}
-          <Lamp>
-            <g transform={`translate(0,${view.alt})`}>
-              {[...Array(10).keys()].map((i) => {
-                const x = ((((i * 200 - view.scroll) % 2000) + 2000) % 2000) - 200;
-                return (
-                  <g key={i}>
-                    {[726, 814].map((y) => (
-                      <g key={y}>
-                        <circle cx={x} cy={y} r={18} fill={LIGHT.white} opacity={0.3} />
-                        <circle cx={x} cy={y} r={6} fill={LIGHT.white} />
-                      </g>
-                    ))}
-                  </g>
-                );
-              })}
-            </g>
+          {[726, 814].map((y) => (
+            <Lamp key={y} back={y === 726}>
+              <g transform={`translate(0,${view.alt})`}>
+                {[...Array(10).keys()].map((i) => {
+                  const x = ((((i * 200 - view.scroll) % 2000) + 2000) % 2000) - 200;
+                  return (
+                    <g key={i}>
+                      <circle cx={x} cy={y} r={18} fill={LIGHT.white} opacity={0.3} />
+                      <circle cx={x} cy={y} r={6} fill={LIGHT.white} />
+                    </g>
+                  );
+                })}
+              </g>
+            </Lamp>
+          ))}
+          <Lamp back>
+            <g transform={`translate(${1250 - view.scroll * 0.6},${view.alt})`}>{airportName}</g>
           </Lamp>
           <ellipse cx={PLANE_X + 20} cy={790} rx={PLANE_W * 0.42 * Math.max(0.3, 1 - view.alt / 300)} ry={14} fill="rgba(30,40,60,0.2)" />
         </g>
@@ -214,11 +219,13 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
           </g>
         )}
 
-        <g transform={`translate(${PLANE_X + flyX},${GROUND - flyY}) scale(${flyScale}) rotate(${-view.pitch})`}>
-          <g transform={`translate(${-SIDE_MAIN_GEAR_X * SCALE},${-49 * SCALE})`}>
-            <SidePlane type={type} color={plane.livery} width={PLANE_W} gear={view.gear} />
+        <Front>
+          <g transform={`translate(${PLANE_X + flyX},${GROUND - flyY}) scale(${flyScale}) rotate(${-view.pitch})`}>
+            <g transform={`translate(${-SIDE_MAIN_GEAR_X * SCALE},${-49 * SCALE})`}>
+              <SidePlane type={type} color={plane.livery} width={PLANE_W} gear={view.gear} />
+            </g>
           </g>
-        </g>
+        </Front>
         <Lamp>
           <g transform={`translate(${PLANE_X + flyX},${GROUND - flyY}) scale(${flyScale}) rotate(${-view.pitch})`}>
             <g transform={`translate(${-SIDE_MAIN_GEAR_X * SCALE},${-49 * SCALE}) scale(${SCALE})`}>
@@ -333,6 +340,26 @@ function SideLights({ longHaul }: { longHaul: boolean }) {
       {spot(40 + shift, 43, 1.5, LIGHT.white, "strobe")}
       {spot(9, 29, 1.1, LIGHT.white)}
       {spot(62, 19.2, 1.2, LIGHT.red, "beacon")}
+    </g>
+  );
+}
+
+const airportName = (
+  <text x={190} y={668} textAnchor="middle" fontSize={30} fontWeight={800} fill="#f6c02c" stroke={OUT} strokeWidth={4} paintOrder="stroke">
+    {`FLUGHAFEN ${HOME.name.toUpperCase()}`}
+  </text>
+);
+
+/** side view of the wind sock behind the runway; the plane rolls to the right, which is towards -y on the apron */
+function Windsock({ x }: { x: number }) {
+  const { angle, strength } = useWind();
+  const droop = (1 - strength) * 1.1;
+  const top: [number, number] = [x, 590];
+  const tail: [number, number] = [x - Math.sin(angle) * Math.cos(droop) * 90, 590 + Math.sin(droop) * 90];
+  return (
+    <g>
+      <rect x={x - 3} y={584} width={6} height={118} rx={3} fill="#9aa3ad" stroke={OUT} strokeWidth={2} />
+      <Sock a={top} b={tail} r0={16} r1={8} />
     </g>
   );
 }

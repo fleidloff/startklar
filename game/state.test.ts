@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NIGHT_MS, arrivals, clockMinutes, createPlane, initialState, isPost, mayArrive, openTasks, parseSave, pauseOver, readyForPushback, reducer, roundOver, type GameState } from "./state.ts";
-import { PUSHBACK_END, TAXIWAY_X, pushbackPose } from "./motion.ts";
-import { AIRCRAFT, flightTime } from "./data.ts";
+import { NIGHT_MS, arrivals, clockMinutes, createPlane, initialState, isLongHaul, isPost, mayArrive, openTasks, parseSave, pauseOver, readyForPushback, reducer, roundOver, type GameState } from "./state.ts";
+import { PUSHBACK_END, TAXIWAY_X, WIND_HOLD_MS, WIND_TURN_MS, pushbackPose, windAt } from "./motion.ts";
+import { AIRCRAFT, destination, flightTime } from "./data.ts";
 
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -173,4 +173,27 @@ test("each night brings exactly one post plane, with parcels and without passeng
   assert.equal(readyForPushback(plane(), s.season), true);
   assert.equal(isPost(parseSave(JSON.stringify(s))!.planes.find((p) => p.id === post.id)!), true, "a saved post plane stays a post plane");
   for (let i = 0; i < 20; i++) assert.equal(isPost(createPlane(initialState(), seeded(i + 1))!), false, "no post plane by day");
+});
+
+test("our airport is Hamburg: Cairo is long haul, Berlin is not", () => {
+  assert.equal(isLongHaul(destination("CAI")), true);
+  assert.equal(isLongHaul(destination("BER")), false);
+});
+
+test("the wind holds for a while, then turns smoothly to a new direction", () => {
+  const start = 40 * WIND_HOLD_MS;
+  const held = windAt(start + WIND_TURN_MS);
+  assert.deepEqual(windAt(start + WIND_HOLD_MS - 1), held, "no change while the wind holds");
+  assert.equal(held.turning, false);
+  const gap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  assert.ok(gap(windAt(start + WIND_HOLD_MS).angle, held.angle) < 1e-9, "a turn starts where the old wind was");
+  let last = held.angle;
+  for (let t = 0; t <= WIND_TURN_MS; t += 100) {
+    const w = windAt(start + WIND_HOLD_MS + t);
+    assert.ok(gap(w.angle, last) < 0.1, "no jump during the turn");
+    assert.ok(w.strength >= 0.35 && w.strength <= 1);
+    last = w.angle;
+  }
+  const directions = [...Array(10).keys()].map((i) => windAt(start + i * WIND_HOLD_MS + WIND_TURN_MS).angle);
+  assert.ok(directions.some((a) => gap(a, directions[0]) > 0.5), "the direction changes now and then");
 });

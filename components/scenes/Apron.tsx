@@ -4,7 +4,7 @@ import { BeltLoader, Bus, Stairs, planeGeometry, type Drawable } from "../art";
 import { Icon } from "../icons";
 import { RoundButton } from "../ui";
 import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
-import { GATE_COLORS, aircraft, tool, type ToolId } from "@/game/data";
+import { GATE_COLORS, HOME, aircraft, tool, type ToolId } from "@/game/data";
 import { capture, P, clamp, gateY, svgPoint } from "@/game/iso";
 import { PUSHBACK_END, pushbackPose } from "@/game/motion";
 import { openTasks, readyForPushback, type GameState, type Plane } from "@/game/state";
@@ -246,7 +246,7 @@ export function Apron({ state, onSelect, onOpen }: Props) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        label="Vorfeld mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen. Zwei Finger, Trackpad oder die Lupen-Knöpfe zoomen."
+        label={`Vorfeld am Flughafen ${HOME.name} mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen. Zwei Finger, Trackpad oder die Lupen-Knöpfe zoomen.`}
       />
       <div className="zoom-controls">
         <RoundButton icon="zoom-out" label="Weiter weg" color="#9ad0f0" size={78} dim={cam.zoom <= ZOOM_MIN + 0.01} onClick={() => zoomButton(1 / 1.4)} />

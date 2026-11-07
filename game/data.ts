@@ -32,7 +32,7 @@ export interface AircraftType {
   bags: number;
 }
 
-export const HOME = { name: "Unser Flughafen", lat: 50.03, lon: 8.57 };
+export const HOME = { name: "Hamburg", lat: 53.63, lon: 9.99 };
 
 export const COUNTRIES = {
   DE: { name: "Deutschland", continent: "Europa", people: "84 Millionen" },

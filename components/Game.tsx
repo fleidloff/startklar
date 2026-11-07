@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Apron, type Screen } from "./scenes/Apron";
 import { Tower } from "./scenes/Tower";
 import { Marshaller } from "./scenes/Marshaller";
@@ -12,7 +12,7 @@ import { Deice } from "./scenes/Deice";
 import { Takeoff } from "./scenes/Takeoff";
 import { WorldMap } from "./scenes/WorldMap";
 import { IsoWorld, parkedPose, planeDrawable } from "./World";
-import { Banner, BigButton, Flag, Modal, RoundButton, Stars } from "./ui";
+import { Banner, BigButton, Flag, Modal, RoundButton, Snowfall, Stars } from "./ui";
 import { Icon } from "./icons";
 import { Night } from "./art";
 import { GATE_COLORS, PRAISE, TOOLS, aircraft, destination, tool, type TaskId, type ToolId } from "@/game/data";
@@ -476,7 +476,7 @@ export default function Game() {
                 />
               )}
             </div>
-            {state.season === "winter" && screen !== "weltkarte" && <Snowfall />}
+            {state.season === "winter" && screen !== "weltkarte" && screen !== "tower" && <Snowfall />}
           </>
         )}
 
@@ -649,17 +649,6 @@ function MiniRadar({ count }: { count: number }) {
       {count > 0 && <circle cx="100" cy="20" r="13" fill="#e8574a" stroke="#fff" strokeWidth="3" />}
       {count > 0 && <text x="100" y="26" textAnchor="middle" fontSize="17" fontWeight="700" fill="#fff">{count}</text>}
     </svg>
-  );
-}
-
-function Snowfall() {
-  const flakes = useMemo(() => [...Array(40).keys()].map((i) => ({ left: (i * 37) % 100, delay: (i * 0.71) % 8, size: 6 + ((i * 7) % 8), dur: 7 + ((i * 3) % 6) })), []);
-  return (
-    <div className="snowfall" aria-hidden="true">
-      {flakes.map((f, i) => (
-        <span key={i} style={{ left: `${f.left}%`, width: f.size, height: f.size, animationDelay: `${f.delay}s`, animationDuration: `${f.dur}s` }} />
-      ))}
-    </div>
   );
 }
 

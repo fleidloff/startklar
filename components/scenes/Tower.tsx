@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
 import { useLit } from "../art";
 import { Icon } from "../icons";
-import { destination } from "@/game/data";
+import { Snowfall } from "../ui";
+import { HOME, destination } from "@/game/data";
 import { capture, P, clock, dist, makePath, svgPoint, type Pt } from "@/game/iso";
 import { sfx, startLoop, stopLoop } from "@/game/sound";
 import { PAUSE_MS, ROUND_MS, clockMinutes, type GameState } from "@/game/state";
@@ -129,13 +130,37 @@ export function Tower({ state, setHint, onLanded, now: wall, paused, onParent, o
 
   return (
     <div className="scene">
-      <IsoWorld className="fill" season={state.season} camera={{ x: c[0], y: c[1] - 60, zoom: 0.62 }} planes={state.planes} drawables={background} label="Blick aus dem Tower auf das Vorfeld" />
+      <IsoWorld className="fill" season={state.season} camera={{ x: c[0], y: c[1] - 60, zoom: 0.62 }} planes={state.planes} drawables={background} label={`Blick aus dem Tower auf das Vorfeld am Flughafen ${HOME.name}`} />
+      <div className="fill" style={{ isolation: "isolate", pointerEvents: "none" }}>
+        <svg className="fill" viewBox="0 0 1600 1000" aria-hidden="true">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#8fd0f5" />
+              <stop offset="1" stopColor="#d8f0fb" />
+            </linearGradient>
+          </defs>
+          <path d="M0,0 H1600 V150 Q1400,175 1200,160 T800,165 T400,158 T0,168 Z" fill="url(#sky)" />
+          <path d="M0,168 Q60,140 120,165 Q180,135 250,162 Q330,140 400,158 Q480,138 560,163 Q640,142 720,162 Q800,140 880,164 Q980,138 1060,160 Q1150,140 1220,160 Q1300,136 1400,160 Q1500,140 1600,158 V180 H0 Z" fill="#4f9d3a" stroke="#26303f" strokeWidth={3} />
+          <g fill="#fff" stroke="#26303f" strokeWidth={3}>
+            <path d="M210,70 a22,22 0 0 1 40,-10 a26,26 0 0 1 48,8 a18,18 0 0 1 4,34 h-90 a16,16 0 0 1 -2,-32 z" />
+            <path d="M1050,50 a20,20 0 0 1 36,-8 a24,24 0 0 1 44,6 a16,16 0 0 1 4,30 h-82 a14,14 0 0 1 -2,-28 z" />
+          </g>
+          {lit && (
+            <g className={`night-${lit}`}>
+              <path d="M0,0 H1600 V150 Q1400,175 1200,160 T800,165 T400,158 T0,168 Z" fill="#14234f" />
+              <path d="M0,168 Q60,140 120,165 Q180,135 250,162 Q330,140 400,158 Q480,138 560,163 Q640,142 720,162 Q800,140 880,164 Q980,138 1060,160 Q1150,140 1220,160 Q1300,136 1400,160 Q1500,140 1600,158 V180 H0 Z" fill="#1f4430" stroke="#26303f" strokeWidth={3} />
+              <g fill="#fff8d8">
+                {STARS.map(([x, y, r]) => <circle key={x} cx={x} cy={y} r={r} />)}
+              </g>
+              <circle cx={1100} cy={80} r={34} fill="#fff4c2" />
+              <circle cx={1116} cy={70} r={30} fill="#14234f" />
+            </g>
+          )}
+        </svg>
+        {state.season === "winter" && <Snowfall />}
+      </div>
       <svg ref={svgRef} className="fill" viewBox="0 0 1600 1000" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} role="application" aria-label="Radar: Zieh eine Linie vom Flugzeug zur Landebahn">
         <defs>
-          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#8fd0f5" />
-            <stop offset="1" stopColor="#d8f0fb" />
-          </linearGradient>
           <radialGradient id="radarbg" cx="0.5" cy="0.5" r="0.7">
             <stop offset="0" stopColor="#2a7a4e" />
             <stop offset="1" stopColor="#123d27" />
@@ -144,23 +169,6 @@ export function Tower({ state, setHint, onLanded, now: wall, paused, onParent, o
             <rect x={RADAR.x} y={RADAR.y} width={RADAR.w} height={RADAR.h} rx={24} />
           </clipPath>
         </defs>
-        <path d="M0,0 H1600 V150 Q1400,175 1200,160 T800,165 T400,158 T0,168 Z" fill="url(#sky)" />
-        <path d="M0,168 Q60,140 120,165 Q180,135 250,162 Q330,140 400,158 Q480,138 560,163 Q640,142 720,162 Q800,140 880,164 Q980,138 1060,160 Q1150,140 1220,160 Q1300,136 1400,160 Q1500,140 1600,158 V180 H0 Z" fill="#4f9d3a" stroke="#26303f" strokeWidth={3} />
-        <g fill="#fff" stroke="#26303f" strokeWidth={3}>
-          <path d="M210,70 a22,22 0 0 1 40,-10 a26,26 0 0 1 48,8 a18,18 0 0 1 4,34 h-90 a16,16 0 0 1 -2,-32 z" />
-          <path d="M1050,50 a20,20 0 0 1 36,-8 a24,24 0 0 1 44,6 a16,16 0 0 1 4,30 h-82 a14,14 0 0 1 -2,-28 z" />
-        </g>
-        {lit && (
-          <g className={`night-${lit}`}>
-            <path d="M0,0 H1600 V150 Q1400,175 1200,160 T800,165 T400,158 T0,168 Z" fill="#14234f" />
-            <path d="M0,168 Q60,140 120,165 Q180,135 250,162 Q330,140 400,158 Q480,138 560,163 Q640,142 720,162 Q800,140 880,164 Q980,138 1060,160 Q1150,140 1220,160 Q1300,136 1400,160 Q1500,140 1600,158 V180 H0 Z" fill="#1f4430" stroke="#26303f" strokeWidth={3} />
-            <g fill="#fff8d8">
-              {STARS.map(([x, y, r]) => <circle key={x} cx={x} cy={y} r={r} />)}
-            </g>
-            <circle cx={1100} cy={80} r={34} fill="#fff4c2" />
-            <circle cx={1116} cy={70} r={30} fill="#14234f" />
-          </g>
-        )}
         <g fill="#37475a" stroke="#26303f" strokeWidth={4}>
           <rect x={0} y={0} width={1600} height={22} />
           <path d="M300,22 L330,22 L350,1000 L310,1000 Z" />

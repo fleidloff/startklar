@@ -145,3 +145,15 @@ function star(cx: number, cy: number, r: number) {
     })
     .join(" ") + "Z";
 }
+
+const FLAKES = [...Array(40).keys()].map((i) => ({ left: (i * 37) % 100, delay: (i * 0.71) % 8, size: 6 + ((i * 7) % 8), dur: 7 + ((i * 3) % 6) }));
+
+export function Snowfall() {
+  return (
+    <div className="snowfall" aria-hidden="true">
+      {FLAKES.map((f, i) => (
+        <span key={i} style={{ left: `${f.left}%`, width: f.size, height: f.size, animationDelay: `${f.delay}s`, animationDuration: `${f.dur}s` }} />
+      ))}
+    </div>
+  );
+}

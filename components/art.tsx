@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { aircraft, type AircraftType } from "@/game/data";
 import { K, P, pts, shade, type Pt } from "@/game/iso";
+import { WIND_HOLD_MS, windAt } from "@/game/motion";
 
 export const OUT = "#26303f";
 const C = Math.cos(Math.PI / 6);
@@ -13,7 +14,8 @@ export const Detail = createContext(true);
 /** set by Game: the airport lights are on */
 export const Night = createContext(false);
 
-const LampLayer = createContext<SVGGElement | null>(null);
+const LampLayer = createContext<{ top: SVGGElement; back: SVGGElement } | null>(null);
+const FrontList = createContext<((id: string, on: boolean) => void) | null>(null);
 const FADE_MS = 2000;
 
 /** "on" while the night fades in, "still" when the scene opened at night, "off" while the morning fades in, null by day */
@@ -38,38 +40,68 @@ export function useLit() {
 /** the night shade's mask: shapes in holes cut the shade away, shapes in covers put it back on top */
 const ShadeMask = createContext<{ holes: SVGGElement; covers: SVGGElement } | null>(null);
 
-/** darkens its children at night; every <Lamp> inside shines above the shade */
+const svgId = (raw: string) => raw.replace(/[^a-zA-Z0-9]/g, "");
+
+/** darkens its children at night; every <Lamp> inside shines above the shade, a <Lamp back> only where no <Front> covers it */
 export function Lights({ children }: { children: ReactNode }) {
   const lit = useLit();
-  const id = `night${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const [layer, setLayer] = useState<SVGGElement | null>(null);
+  const id = `night${svgId(useId())}`;
+  const [top, setTop] = useState<SVGGElement | null>(null);
+  const [back, setBack] = useState<SVGGElement | null>(null);
   const [holes, setHoles] = useState<SVGGElement | null>(null);
   const [covers, setCovers] = useState<SVGGElement | null>(null);
+  const [fronts, setFronts] = useState<string[]>([]);
+  const register = useCallback((front: string, on: boolean) => setFronts((list) => (on ? [...list, front] : list.filter((f) => f !== front))), []);
   const mask = useMemo(() => (lit && holes && covers ? { holes, covers } : null), [lit, holes, covers]);
+  const layers = useMemo(() => (lit && top && back ? { top, back } : null), [lit, top, back]);
   return (
     <ShadeMask.Provider value={mask}>
-      <LampLayer.Provider value={lit ? layer : null}>
-        {children}
-        {lit && (
-          <>
-            <mask id={id} maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
-              <rect x={-1e4} y={-1e4} width={2e4} height={2e4} fill="#fff" />
-              <g ref={setHoles} className="night-hole" />
-              <g ref={setCovers} className="night-cover" />
-            </mask>
-            <rect className={`night-shade night-${lit}`} mask={`url(#${id})`} x={-1e4} y={-1e4} width={2e4} height={2e4} pointerEvents="none" />
-            <g ref={setLayer} className={`night-${lit}`} pointerEvents="none" />
-          </>
-        )}
-      </LampLayer.Provider>
+      <FrontList.Provider value={register}>
+        <LampLayer.Provider value={layers}>
+          {children}
+          {lit && (
+            <>
+              <mask id={id} maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
+                <rect x={-1e4} y={-1e4} width={2e4} height={2e4} fill="#fff" />
+                <g ref={setHoles} className="night-hole" />
+                <g ref={setCovers} className="night-cover" />
+              </mask>
+              <rect className={`night-shade night-${lit}`} mask={`url(#${id})`} x={-1e4} y={-1e4} width={2e4} height={2e4} pointerEvents="none" />
+              <filter id={`${id}s`}>
+                <feComponentTransfer in="SourceAlpha">
+                  <feFuncA type="discrete" tableValues="0 1" />
+                </feComponentTransfer>
+              </filter>
+              <mask id={`${id}f`} maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
+                <rect x={-1e4} y={-1e4} width={2e4} height={2e4} fill="#fff" />
+                {fronts.map((f) => <use key={f} href={`#${f}`} filter={`url(#${id}s)`} />)}
+              </mask>
+              <g ref={setBack} className={`night-${lit}`} mask={`url(#${id}f)`} pointerEvents="none" />
+              <g ref={setTop} className={`night-${lit}`} pointerEvents="none" />
+            </>
+          )}
+        </LampLayer.Provider>
+      </FrontList.Provider>
     </ShadeMask.Provider>
   );
 }
 
-/** drawn only at night, above the shade; children need absolute coordinates */
-export function Lamp({ children }: { children: ReactNode }) {
-  const layer = useContext(LampLayer);
-  return layer ? createPortal(children, layer) : null;
+/** drawn only at night, above the shade; children need absolute coordinates. A back lamp sits behind every <Front> */
+export function Lamp({ children, back }: { children: ReactNode; back?: boolean }) {
+  const layers = useContext(LampLayer);
+  return layers ? createPortal(children, back ? layers.back : layers.top) : null;
+}
+
+/** hides the <Lamp back> lights behind its children */
+export function Front({ children }: { children: ReactNode }) {
+  const register = useContext(FrontList);
+  const id = `front${svgId(useId())}`;
+  useEffect(() => {
+    if (!register) return;
+    register(id, true);
+    return () => register(id, false);
+  }, [register, id]);
+  return <g id={register ? id : undefined}>{children}</g>;
 }
 
 function Masked({ children, part }: { children: ReactNode; part: "holes" | "covers" }) {
@@ -77,7 +109,13 @@ function Masked({ children, part }: { children: ReactNode; part: "holes" | "cove
   return (
     <>
       {children}
-      {mask && createPortal(<LampLayer.Provider value={null}>{children}</LampLayer.Provider>, mask[part])}
+      {mask &&
+        createPortal(
+          <LampLayer.Provider value={null}>
+            <FrontList.Provider value={null}>{children}</FrontList.Provider>
+          </LampLayer.Provider>,
+          mask[part],
+        )}
     </>
   );
 }
@@ -97,6 +135,34 @@ export function Glow({ at, r, color, className }: { at: Pt; r: number; color: st
         <circle cx={at[0]} cy={at[1]} r={r * 0.5} fill="#ffffff" />
       </g>
     </Lamp>
+  );
+}
+
+/** the current wind; re-renders only while it turns and once when the next turn starts */
+export function useWind() {
+  const [now, setNow] = useState(() => Date.now());
+  const wind = windAt(now);
+  useEffect(() => {
+    const t = setTimeout(() => setNow(Date.now()), wind.turning ? 150 : WIND_HOLD_MS - (now % WIND_HOLD_MS));
+    return () => clearTimeout(t);
+  }, [now, wind.turning]);
+  return wind;
+}
+
+/** orange and white wind sock from the hoop at a to the tail at b, in screen points */
+export function Sock({ a, b, r0, r1 }: { a: Pt; b: Pt; r0: number; r1: number }) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const [ux, uy] = len < 0.5 ? [1, 0] : [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+  const at = (t: number, side: number): Pt => {
+    const r = r0 + (r1 - r0) * t;
+    return [a[0] + (b[0] - a[0]) * t - uy * r * side, a[1] + (b[1] - a[1]) * t + ux * r * side];
+  };
+  return (
+    <g stroke={OUT} strokeWidth={1.6} strokeLinejoin="round">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <polygon key={i} points={pts([at(i / 5, 1), at((i + 1) / 5, 1), at((i + 1) / 5, -1), at(i / 5, -1)])} fill={i % 2 ? "#ffffff" : "#f39a35"} />
+      ))}
+    </g>
   );
 }
 
@@ -124,9 +190,9 @@ function textMatrix(origin: Pt, heading: number) {
   return `matrix(${dx.toFixed(3)},${dy.toFixed(3)},0,1,${origin[0].toFixed(1)},${origin[1].toFixed(1)})`;
 }
 
-export function FaceText({ at, heading, size, children, fill = OUT }: { at: Pt; heading: number; size: number; children: string; fill?: string }) {
+export function FaceText({ at, heading, size, children, fill = OUT, stroke }: { at: Pt; heading: number; size: number; children: string; fill?: string; stroke?: string }) {
   return (
-    <text transform={textMatrix(at, heading)} fontSize={size} fontWeight={700} textAnchor="middle" fill={fill} className="iso-text">
+    <text transform={textMatrix(at, heading)} fontSize={size} fontWeight={700} textAnchor="middle" fill={fill} stroke={stroke} strokeWidth={stroke ? size * 0.12 : undefined} paintOrder="stroke" className="iso-text">
       {children}
     </text>
   );

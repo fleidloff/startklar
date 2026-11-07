@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
 import { Bus, Passenger, Plane, type Drawable } from "../art";
 import { IsoWorld } from "../World";
-import { otherPlanes, servicePoints, turnaroundProps } from "./Apron";
+import { busWait, otherPlanes, servicePoints, turnaroundProps } from "./Apron";
 import { Hand } from "./Tower";
 import { capture, P, clock, dist, lerp, makePath, pts, svgPoint, unproject, type Pt } from "@/game/iso";
 import { sfx } from "@/game/sound";
@@ -15,7 +15,8 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const { pose, g, y, stairsX } = servicePoints(plane);
   const target: Pt = [stairsX + 1, y + g.r + 11];
-  const start: Pt = [16, y + 42];
+  const wait = busWait(plane.gate);
+  const start: Pt = [wait.x, wait.y];
   const [drawing, setDrawing] = useState<Pt[] | null>(null);
   const [drive, setDrive] = useState<{ path: ReturnType<typeof makePath>; t0: number; points: Pt[] } | null>(null);
   const [now, setNow] = useState(0);
@@ -51,7 +52,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
     return () => cancelAnimationFrame(raf);
   }, [phase, drive, onDone, boardStart]);
 
-  let bus = { x: start[0], y: start[1], heading: 0 };
+  let bus = wait;
   if (drive) {
     const s = phase === "drive" ? ((now - drive.t0) / 1000) * SPEED : drive.path.length;
     const a = drive.path.at(Math.max(0, s - 5.5));
@@ -70,7 +71,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
     if (dist(w, [bus.x, bus.y]) > 10) return;
     capture(svgRef.current, e.pointerId);
     sfx.click();
-    setDrawing([[bus.x + 5.5, bus.y], w]);
+    setDrawing([[bus.x + Math.cos(bus.heading) * 5.5, bus.y + Math.sin(bus.heading) * 5.5], w]);
   };
   const move = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!drawing) return;
@@ -81,7 +82,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
     if (!drawing) return;
     const end = drawing[drawing.length - 1];
     if (dist(end, target) < 9 && drawing.length > 3) {
-      const path = makePath([[bus.x - 5.5, bus.y], ...drawing.slice(0, -1), target]);
+      const path = makePath([[bus.x - Math.cos(bus.heading) * 5.5, bus.y - Math.sin(bus.heading) * 5.5], ...drawing.slice(0, -1), target]);
       setDrive({ path, t0: clock(), points: [...drawing.slice(0, -1), target] });
       setPhase("drive");
       sfx.honk();
@@ -111,7 +112,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
   const drawables: Drawable[] = [
     ...otherPlanes(state, plane.id),
     { key: "plane", depth: pose.x + pose.y, node: <Plane {...pose} type={plane.type} livery={plane.livery} snow={state.season === "winter" && !plane.done.includes("enteisung") ? 1 : 0} /> },
-    ...turnaroundProps(plane),
+    ...turnaroundProps(plane, false),
     { key: "bus", depth: bus.x + bus.y, node: <Bus {...bus} /> },
     ...people,
   ];

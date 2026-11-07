@@ -238,6 +238,15 @@ text {
   z-index: 5;
 }
 
+.zoom-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  gap: 12px;
+  z-index: 5;
+}
+
 .radar-btn {
   padding: 0;
   border: none;
@@ -833,6 +842,21 @@ text {
 @keyframes blink {
   50% {
     opacity: 0.2;
+  }
+}
+
+.wave-arm {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+  animation: wave-arm 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes wave-arm {
+  from {
+    rotate: -14deg;
+  }
+  to {
+    rotate: 16deg;
   }
 }
 

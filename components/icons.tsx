@@ -164,6 +164,20 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M6,26 h8 M4,34 h6" strokeWidth={3} />
     </g>
   ),
+  "zoom-in": (
+    <g {...s}>
+      <line x1={40} y1={40} x2={55} y2={55} strokeWidth={9} />
+      <circle cx={27} cy={27} r={18} fill="#fff" strokeWidth={4} />
+      <path d="M19,27 h16 M27,19 v16" strokeWidth={5} />
+    </g>
+  ),
+  "zoom-out": (
+    <g {...s}>
+      <line x1={40} y1={40} x2={55} y2={55} strokeWidth={9} />
+      <circle cx={27} cy={27} r={18} fill="#fff" strokeWidth={4} />
+      <path d="M19,27 h16" strokeWidth={5} />
+    </g>
+  ),
   close: (
     <g {...s} strokeWidth={6}>
       <line x1={18} y1={18} x2={46} y2={46} />

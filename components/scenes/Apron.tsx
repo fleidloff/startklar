@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { BeltLoader, Stairs, planeGeometry, type Drawable } from "../art";
+import { BeltLoader, Bus, Stairs, planeGeometry, type Drawable } from "../art";
 import { Icon } from "../icons";
+import { RoundButton } from "../ui";
 import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
-import { GATE_COLORS, tool, type ToolId } from "@/game/data";
-import { capture, P, clamp, gateY } from "@/game/iso";
+import { GATE_COLORS, aircraft, tool, type ToolId } from "@/game/data";
+import { capture, P, clamp, gateY, svgPoint } from "@/game/iso";
 import { PUSHBACK_END, pushbackPose } from "@/game/motion";
 import { openTasks, readyForPushback, type GameState, type Plane } from "@/game/state";
 
@@ -22,11 +23,15 @@ export function servicePoints(p: Pick<Plane, "gate" | "type">) {
   return { pose, g, y: gateY(p.gate), stairsX: pose.x + 0.36 * g.L, beltX: pose.x - 0.26 * g.L };
 }
 
-export function turnaroundProps(p: Plane): Drawable[] {
+/** where the apron bus waits before its trip: at the outer edge of the stand, clear of every plane size */
+export const busWait = (gate: number) => ({ x: 56, y: gateY(gate) + 44, heading: -Math.PI / 2 });
+
+export function turnaroundProps(p: Plane, waitingBus = true): Drawable[] {
   const { g, y, stairsX, beltX } = servicePoints(p);
   return [
     { key: `stairs-${p.id}`, depth: stairsX + y + g.r + 3.5, node: <Stairs x={stairsX} y={y + g.r + 3.5} heading={Math.PI / 2} h={g.zc - 0.2} /> },
     { key: `belt-${p.id}`, depth: beltX + y + g.r + 5, node: <BeltLoader x={beltX} y={y + g.r + 5.5} heading={-Math.PI / 2} top={P(beltX, y + g.r * 0.9, g.zc - g.r * 0.4)} /> },
+    ...(!waitingBus || p.done.includes("bus") ? [] : [{ key: `bus-${p.id}`, depth: busWait(p.gate).x + busWait(p.gate).y, node: <Bus {...busWait(p.gate)} /> }]),
   ];
 }
 
@@ -48,33 +53,68 @@ export function standingPose(p: Plane) {
   return parkedPose(p);
 }
 
+type Cam = { x: number; y: number; zoom: number };
+
+const ZOOM_MIN = 0.55;
+const ZOOM_MAX = 3.2;
+
+/** close-up on a gate: the plane fills about half of the screen width, a little below the banner */
+const focus = (p?: Plane): Cam => {
+  const t = aircraft(p?.type ?? "A320");
+  const zoom = clamp((2.2 * 66) / (t.gameLength + t.gameSpan), 1.5, 2.3);
+  const pose = p ? standingPose(p) : parkedPose({ gate: 0, type: t.id });
+  const c = P(pose.x, pose.y, t.radius);
+  return { x: c[0], y: c[1] - 60 / zoom, zoom };
+};
+
+const fit = (c: Cam): Cam => ({ x: clamp(c.x, -1400, 1700), y: clamp(c.y, -300, 1500), zoom: clamp(c.zoom, ZOOM_MIN, ZOOM_MAX) });
+
+const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 export function Apron({ state, onSelect, onOpen }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const selected = state.planes.find((p) => p.id === state.selected);
-  const focus = (gate: number) => {
-    const c = P(30, gateY(gate));
-    return { x: c[0] + 60, y: c[1] - 40, zoom: 0.9 };
-  };
-  const [cam, setCam] = useState(() => focus(selected?.gate ?? 1));
+  const [cam, setCam] = useState(() => focus(selected));
+  const camRef = useRef(cam);
+  const raf = useRef(0);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null);
+  const pinch = useRef<{ d: number; mid: { x: number; y: number }; cam: Cam; a: number } | null>(null);
+
+  const move = (c: Cam) => {
+    camRef.current = fit(c);
+    setCam(camRef.current);
+  };
+  const stopGlide = () => cancelAnimationFrame(raf.current);
+  const glide = (goal: Cam) => {
+    stopGlide();
+    goal = fit(goal);
+    if (reducedMotion()) return move(goal);
+    const step = () => {
+      const c = camRef.current;
+      const next = { x: c.x + (goal.x - c.x) * 0.15, y: c.y + (goal.y - c.y) * 0.15, zoom: c.zoom * (goal.zoom / c.zoom) ** 0.15 };
+      const done = Math.abs(next.x - goal.x) < 1 && Math.abs(next.y - goal.y) < 1 && Math.abs(next.zoom - goal.zoom) < 0.005;
+      move(done ? goal : next);
+      if (!done) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+  };
 
   useEffect(() => {
-    if (!selected) return;
-    const target = focus(selected.gate);
-    let raf = 0;
-    const step = () => {
-      let done = false;
-      setCam((c) => {
-        const nx = c.x + (target.x - c.x) * 0.15;
-        const ny = c.y + (target.y - c.y) * 0.15;
-        done = Math.abs(nx - target.x) < 1 && Math.abs(ny - target.y) < 1;
-        return { ...c, x: nx, y: ny };
-      });
-      if (!done) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [selected?.id, selected?.gate]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (selected) glide(focus(selected));
+    return stopGlide;
+  }, [selected?.id, selected?.gate, selected?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const zoomAt = (f: number, clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    stopGlide();
+    const p = svgPoint(svg, clientX, clientY);
+    const c = camRef.current;
+    const k = c.zoom / clamp(c.zoom * f, ZOOM_MIN, ZOOM_MAX);
+    move({ x: p[0] - (p[0] - c.x) * k, y: p[1] - (p[1] - c.y) * k, zoom: c.zoom / k });
+  };
+  const zoomButton = (f: number) => glide({ ...camRef.current, zoom: camRef.current.zoom * f });
 
   const drawables: Drawable[] = [];
   const bubbles: React.ReactNode[] = [];
@@ -117,29 +157,55 @@ export function Apron({ state, onSelect, onOpen }: Props) {
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if ((e.target as Element).closest("[data-bubble]")) return;
-    drag.current = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
+    if (e.isPrimary) pointers.current.clear();
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    stopGlide();
+    const svg = svgRef.current;
+    const list = [...pointers.current.values()];
+    if (list.length === 2 && svg) {
+      const [a, b] = list;
+      drag.current = null;
+      pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, cam: camRef.current, a: svg.getScreenCTM()?.a ?? 1 };
+      capture(svg, e.pointerId);
+      return;
+    }
+    if (list.length === 1) drag.current = { x: e.clientX, y: e.clientY, cx: camRef.current.x, cy: camRef.current.y, moved: false };
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const svg = svgRef.current;
+    const pz = pinch.current;
+    if (pz && svg && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const rect = svg.getBoundingClientRect();
+      const mx = rect.left + rect.width / 2;
+      const my = rect.top + rect.height / 2;
+      const zoom = clamp((pz.cam.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / pz.d, ZOOM_MIN, ZOOM_MAX);
+      const a1 = (pz.a * zoom) / pz.cam.zoom;
+      const wx = pz.cam.x + (pz.mid.x - mx) / pz.a;
+      const wy = pz.cam.y + (pz.mid.y - my) / pz.a;
+      move({ x: wx - ((a.x + b.x) / 2 - mx) / a1, y: wy - ((a.y + b.y) / 2 - my) / a1, zoom });
+      return;
+    }
     const d = drag.current;
-    const ctm = svgRef.current?.getScreenCTM();
+    const ctm = svg?.getScreenCTM();
     if (!d || !ctm) return;
     const dx = (e.clientX - d.x) / ctm.a;
     const dy = (e.clientY - d.y) / ctm.d;
     if (Math.abs(dx) + Math.abs(dy) > 6) {
       d.moved = true;
-      capture(svgRef.current, e.pointerId);
+      capture(svg!, e.pointerId);
     }
-    if (d.moved) setCam((c) => ({ ...c, x: clamp(d.cx - dx, -700, 1300), y: clamp(d.cy - dy, -100, 1250) }));
+    if (d.moved) move({ ...camRef.current, x: d.cx - dx, y: d.cy - dy });
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId);
     drag.current = null;
+    pinch.current = null;
   };
 
   return (
-    <div
-      className="scene"
-      onWheel={(e) => setCam((c) => ({ ...c, zoom: clamp(c.zoom * (e.deltaY > 0 ? 0.92 : 1.08), 0.55, 1.6) }))}
-    >
+    <div className="scene" onWheel={(e) => zoomAt(e.deltaY > 0 ? 0.92 : 1.08, e.clientX, e.clientY)}>
       <IsoWorld
         svgRef={svgRef}
         className="fill"
@@ -151,8 +217,13 @@ export function Apron({ state, onSelect, onOpen }: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        label="Vorfeld mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen."
+        onPointerCancel={onPointerUp}
+        label="Vorfeld mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen. Zwei Finger oder die Lupen-Knöpfe zoomen."
       />
+      <div className="zoom-controls">
+        <RoundButton icon="zoom-out" label="Weiter weg" color="#9ad0f0" size={78} dim={cam.zoom <= ZOOM_MIN + 0.01} onClick={() => zoomButton(1 / 1.4)} />
+        <RoundButton icon="zoom-in" label="Näher ran" color="#9ad0f0" size={78} dim={cam.zoom >= ZOOM_MAX - 0.01} onClick={() => zoomButton(1.4)} />
+      </div>
     </div>
   );
 }

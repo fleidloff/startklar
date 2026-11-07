@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createPlane, initialState, openTasks, parseSave, reducer, type GameState } from "./state.ts";
 import { PUSHBACK_END, TAXIWAY_X, pushbackPose } from "./motion.ts";
-import { AIRCRAFT } from "./data.ts";
+import { AIRCRAFT, flightTime } from "./data.ts";
 
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -62,4 +62,12 @@ test("pushback ends on the taxiway, clear of the parked neighbours", () => {
     assert.ok(Math.abs(end.x - TAXIWAY_X) < 0.5, "fuselage on the taxiway centre line");
     assert.ok(end.x - type.gameSpan / 2 > 8 + longest, "wing tips clear of the tail of a parked neighbour");
   }
+});
+
+test("flight time is written in whole words", () => {
+  const kmFor = (minutes: number) => ((minutes - 30) * 800) / 60;
+  assert.equal(flightTime(kmFor(45)), "45 Minuten");
+  assert.equal(flightTime(kmFor(61)), "1 Stunde 1 Minute");
+  assert.equal(flightTime(kmFor(120)), "2 Stunden");
+  assert.equal(flightTime(kmFor(135)), "2 Stunden 15 Minuten");
 });

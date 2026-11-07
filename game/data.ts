@@ -117,5 +117,7 @@ export function flightTime(km: number) {
   const minutes = Math.round((km / 800) * 60 + 30);
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return h === 0 ? `${m} Minuten` : `${h} Std. ${m} Min.`;
+  const hours = `${h} ${h === 1 ? "Stunde" : "Stunden"}`;
+  const mins = `${m} ${m === 1 ? "Minute" : "Minuten"}`;
+  return h === 0 ? mins : m === 0 ? hours : `${hours} ${mins}`;
 }

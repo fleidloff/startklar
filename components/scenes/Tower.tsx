@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
+import { useLit } from "../art";
+import { Icon } from "../icons";
 import { destination } from "@/game/data";
 import { capture, P, clock, dist, makePath, svgPoint, type Pt } from "@/game/iso";
 import { sfx, startLoop, stopLoop } from "@/game/sound";
@@ -13,6 +15,7 @@ interface Props {
   now: number;
   paused: boolean;
   onParent: () => void;
+  onLight: () => void;
 }
 
 const RADAR = { x: 400, y: 470, w: 800, h: 500 };
@@ -29,7 +32,10 @@ interface Flight {
   start: number;
 }
 
-export function Tower({ state, setHint, onLanded, now: wall, paused, onParent }: Props) {
+const STARS: [number, number, number][] = [[60, 40, 3], [150, 95, 2], [260, 30, 2.5], [420, 70, 3], [530, 25, 2], [640, 110, 2], [720, 45, 3], [880, 80, 2.5], [960, 30, 2], [1180, 100, 2], [1260, 40, 3], [1380, 85, 2], [1470, 35, 2.5], [1560, 105, 2]];
+
+export function Tower({ state, setHint, onLanded, now: wall, paused, onParent, onLight }: Props) {
+  const lit = useLit();
   const svgRef = useRef<SVGSVGElement>(null);
   const [now, setNow] = useState(() => performance.now());
   const [drawing, setDrawing] = useState<{ id: string; points: Pt[] } | null>(null);
@@ -144,6 +150,17 @@ export function Tower({ state, setHint, onLanded, now: wall, paused, onParent }:
           <path d="M210,70 a22,22 0 0 1 40,-10 a26,26 0 0 1 48,8 a18,18 0 0 1 4,34 h-90 a16,16 0 0 1 -2,-32 z" />
           <path d="M1050,50 a20,20 0 0 1 36,-8 a24,24 0 0 1 44,6 a16,16 0 0 1 4,30 h-82 a14,14 0 0 1 -2,-28 z" />
         </g>
+        {lit && (
+          <g className={`night-${lit}`}>
+            <path d="M0,0 H1600 V150 Q1400,175 1200,160 T800,165 T400,158 T0,168 Z" fill="#14234f" />
+            <path d="M0,168 Q60,140 120,165 Q180,135 250,162 Q330,140 400,158 Q480,138 560,163 Q640,142 720,162 Q800,140 880,164 Q980,138 1060,160 Q1150,140 1220,160 Q1300,136 1400,160 Q1500,140 1600,158 V180 H0 Z" fill="#1f4430" stroke="#26303f" strokeWidth={3} />
+            <g fill="#fff8d8">
+              {STARS.map(([x, y, r]) => <circle key={x} cx={x} cy={y} r={r} />)}
+            </g>
+            <circle cx={1100} cy={80} r={34} fill="#fff4c2" />
+            <circle cx={1116} cy={70} r={30} fill="#14234f" />
+          </g>
+        )}
         <g fill="#37475a" stroke="#26303f" strokeWidth={4}>
           <rect x={0} y={0} width={1600} height={22} />
           <path d="M300,22 L330,22 L350,1000 L310,1000 Z" />
@@ -219,6 +236,13 @@ export function Tower({ state, setHint, onLanded, now: wall, paused, onParent }:
         )}
       </svg>
       <TowerClock played={state.round.played} paused={paused} />
+      <button type="button" role="switch" aria-checked={!!state.night} aria-label="Flughafenbeleuchtung" className={`light-switch${state.night ? " on" : ""}`} onClick={onLight}>
+        <Icon name="lamp" size={64} />
+        <span className="light-rocker" aria-hidden="true">
+          <span />
+        </span>
+        <span className="light-label" aria-hidden="true">Licht {state.night ? "an" : "aus"}</span>
+      </button>
       {paused && <PauseSun progress={(wall - state.round.lastPlay) / PAUSE_MS} onHold={onParent} />}
     </div>
   );

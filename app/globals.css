@@ -1131,3 +1131,163 @@ text {
     opacity: 1;
   }
 }
+
+/* ---------- night ---------- */
+
+.night-shade {
+  fill: #0a1840;
+  fill-opacity: 0.55;
+}
+
+.night-on {
+  animation: night-in 2s ease-out;
+}
+
+.night-off {
+  opacity: 0;
+  animation: night-out 2s ease-in;
+}
+
+/* two short flashes half a second apart, then a pause: never faster than twice a second */
+.strobe {
+  animation: strobe 1.5s linear infinite;
+}
+
+.beacon {
+  animation: beacon 1s linear infinite;
+}
+
+@keyframes night-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes night-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes strobe {
+  0%,
+  8% {
+    opacity: 1;
+  }
+  8.01%,
+  33% {
+    opacity: 0;
+  }
+  33.01%,
+  41% {
+    opacity: 1;
+  }
+  41.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes beacon {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  30.01%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+.light-switch {
+  position: absolute;
+  left: 120px;
+  top: 560px;
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 150px;
+  padding: 16px 0 14px;
+  border: 6px solid #fff;
+  border-radius: 26px;
+  background: #fffdf5;
+  box-shadow: 0 0 0 3.5px var(--ink), var(--shadow);
+  font: inherit;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.light-switch svg {
+  opacity: 0.55;
+  transition: opacity 0.3s, filter 0.3s;
+}
+
+.light-switch.on svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px #ffd23a);
+}
+
+.light-rocker {
+  display: flex;
+  align-items: flex-end;
+  width: 54px;
+  height: 84px;
+  padding: 6px;
+  border: 3.5px solid var(--ink);
+  border-radius: 14px;
+  background: #d9dfe6;
+}
+
+.light-rocker span {
+  width: 100%;
+  height: 50%;
+  border: 3px solid var(--ink);
+  border-radius: 9px;
+  background: #fff;
+  transition: transform 0.2s;
+}
+
+.light-switch.on .light-rocker {
+  background: #ffe27a;
+}
+
+.light-switch.on .light-rocker span {
+  transform: translateY(-100%);
+}
+
+.light-switch:focus-visible {
+  outline: 5px solid #3aa3e8;
+  outline-offset: 4px;
+}
+
+/* shapes in the night shade's mask: black cuts the shade away, white keeps it */
+.night-hole,
+.night-hole [fill]:not([fill="none"]) {
+  fill: #000 !important;
+}
+
+.night-hole [stroke]:not([stroke="none"]) {
+  stroke: #000 !important;
+}
+
+.night-cover,
+.night-cover [fill]:not([fill="none"]) {
+  fill: #fff !important;
+}
+
+.night-cover [stroke]:not([stroke="none"]) {
+  stroke: #fff !important;
+}
+
+.night-hole *,
+.night-cover * {
+  opacity: 1 !important;
+  fill-opacity: 1 !important;
+  stroke-opacity: 1 !important;
+}

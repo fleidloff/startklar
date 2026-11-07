@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { Plane, Tug } from "../art";
+import { Bright, Cover, Plane, Tug } from "../art";
 import { IsoWorld } from "../World";
 import { otherPlanes } from "./Apron";
 import { Hand } from "./Tower";
@@ -67,9 +67,13 @@ export function Pushback({ state, plane, setHint, onDone }: SceneProps) {
     {
       key: "pushplane",
       depth: pose.x + pose.y,
-      node: <Plane x={pose.x} y={pose.y} heading={pose.heading} type={plane.type} livery={plane.livery} />,
+      node: (
+        <Cover>
+          <Plane x={pose.x} y={pose.y} heading={pose.heading} type={plane.type} livery={plane.livery} />
+        </Cover>
+      ),
     },
-    { key: "tug", depth: tugX + tugY + 0.1, node: <Tug x={tugX} y={tugY} heading={pose.heading + Math.PI} color="#f2f4f6" /> },
+    { key: "tug", depth: tugX + tugY + 0.1, node: <Cover><Tug x={tugX} y={tugY} heading={pose.heading + Math.PI} color="#f2f4f6" /></Cover> },
   ];
 
   return (
@@ -88,19 +92,21 @@ export function Pushback({ state, plane, setHint, onDone }: SceneProps) {
         onPointerCancel={up}
         label="Pushback: Zieh den Schlepper an der gelben Linie entlang"
         under={
-          <g>
-            <polyline points={pts(guide)} fill="none" stroke="#26303f" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round" opacity={0.25} />
-            <polyline points={pts(guide)} fill="none" stroke="#ffd23a" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="18 12" className="dash-move" />
-            {(() => {
-              const e = P(endPt.x, endPt.y);
-              return (
-                <g transform={`translate(${e[0]},${e[1]})`}>
-                  <ellipse rx={34} ry={18} fill="#4cbb6c" stroke="#26303f" strokeWidth={3} />
-                  <text y={6} textAnchor="middle" fontSize={16} fontWeight={800} fill="#fff">ZIEL</text>
-                </g>
-              );
-            })()}
-          </g>
+          <Bright>
+            <g>
+              <polyline points={pts(guide)} fill="none" stroke="#26303f" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round" opacity={0.25} />
+              <polyline points={pts(guide)} fill="none" stroke="#ffd23a" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="18 12" className="dash-move" />
+              {(() => {
+                const e = P(endPt.x, endPt.y);
+                return (
+                  <g transform={`translate(${e[0]},${e[1]})`}>
+                    <ellipse rx={34} ry={18} fill="#4cbb6c" stroke="#26303f" strokeWidth={3} />
+                    <text y={6} textAnchor="middle" fontSize={16} fontWeight={800} fill="#fff">ZIEL</text>
+                  </g>
+                );
+              })()}
+            </g>
+          </Bright>
         }
         overlay={
           !done && (

@@ -1,4 +1,4 @@
-import { AIRCRAFT, AIRLINES, DESTINATIONS, HOME, LIVERIES, distanceKm, tool, type TaskId } from "./data.ts";
+import { AIRCRAFT, AIRLINES, COUNTRIES, DESTINATIONS, HOME, LIVERIES, POST_LIVERY, aircraft, distanceKm, tool, type TaskId } from "./data.ts";
 
 export type Stage = "anflug" | "einwinken" | "abfertigung" | "abflug";
 export type Season = "sommer" | "winter";
@@ -34,6 +34,13 @@ export interface GameState {
   selected: string | null;
   seq: number;
   round: Round;
+  night: Night | null;
+}
+
+/** until: wall clock in milliseconds when the morning comes; post: the post plane of this night has not come yet */
+export interface Night {
+  until: number;
+  post: boolean;
 }
 
 /** played: play time of this round; lastPlay: wall clock of the last counted moment; both in milliseconds */
@@ -54,6 +61,7 @@ export type Action =
   | { type: "season"; season: Season }
   | { type: "sound"; on: boolean }
   | { type: "tick"; now: number }
+  | { type: "night"; on: boolean; now: number }
   | { type: "round"; now: number; planes: Plane[] }
   | { type: "reset" };
 
@@ -64,18 +72,21 @@ const MINUTE = 60_000;
 export const ARRIVALS_MS = 15 * MINUTE;
 export const ROUND_MS = 20 * MINUTE;
 export const PAUSE_MS = 20 * MINUTE;
+export const NIGHT_MS = 5 * MINUTE;
 /** a longer gap between two ticks is an interruption, not play time */
 const MAX_TICK_MS = 15_000;
 
-/** each job lists the tools that can do it: passengers board by bus or by finger */
-export function requiredTasks(season: Season): TaskId[][] {
-  const base: TaskId[][] = [["bus", "finger"], ["gepaeck"], ["tanken"]];
+export const isPost = (p: Pick<Plane, "type">) => !!aircraft(p.type).freighter;
+
+/** each job lists the tools that can do it: passengers board by bus or by finger, the post plane has no passengers */
+export function requiredTasks(season: Season, plane?: Pick<Plane, "type">): TaskId[][] {
+  const base: TaskId[][] = plane && isPost(plane) ? [["gepaeck"], ["tanken"]] : [["bus", "finger"], ["gepaeck"], ["tanken"]];
   return season === "winter" ? [...base, ["enteisung"]] : base;
 }
 
 export function openJobs(plane: Plane, season: Season): TaskId[][] {
   if (plane.stage !== "abfertigung") return [];
-  return requiredTasks(season).filter((job) => !job.some((t) => plane.done.includes(t)));
+  return requiredTasks(season, plane).filter((job) => !job.some((t) => plane.done.includes(t)));
 }
 
 export const openTasks = (plane: Plane, season: Season): TaskId[] => openJobs(plane, season).flat();
@@ -96,6 +107,7 @@ export function todoText(plane: Plane | undefined, season: Season): string {
     case "abfertigung": {
       const job = openJobs(plane, season)[0];
       if (!job) return "Startklar! Zurückschieben!";
+      if (job[0] === "gepaeck" && isPost(plane)) return "Pakete einladen!";
       return job.length > 1 ? `${job.map((t) => tool(t).label).join(" oder ")}? Du hast die Wahl!` : tool(job[0]).todo;
     }
   }
@@ -115,6 +127,7 @@ export function initialState(now = Date.now()): GameState {
     selected: "p1",
     seq: 3,
     round: { played: 0, lastPlay: now, departed: 0 },
+    night: null,
   };
 }
 
@@ -155,20 +168,21 @@ export function createPlane(state: GameState, rnd: () => number): Plane | null {
   const gates = freeGates(state);
   if (gates.length === 0) return null;
   const pick = <T,>(list: T[]) => list[Math.floor(rnd() * list.length) % list.length];
+  const post = !!state.night?.post;
   const busy = new Set(state.planes.map((p) => p.dest));
-  const dest = pick(DESTINATIONS.filter((d) => !busy.has(d.id)));
+  const dest = pick(DESTINATIONS.filter((d) => !busy.has(d.id) && (!post || COUNTRIES[d.flag].continent === "Europa")));
   const longHaul = distanceKm(HOME.lat, HOME.lon, dest.lat, dest.lon) > 3000;
-  const type = pick(AIRCRAFT.filter((a) => a.longHaul === longHaul));
+  const type = post ? aircraft("B737F") : pick(AIRCRAFT.filter((a) => a.longHaul === longHaul && !a.freighter));
   const used = new Set(state.planes.map((p) => p.flightNo));
   let flightNo = "";
-  do flightNo = `${pick(AIRLINES)} ${100 + Math.floor(rnd() * 900)}`;
+  do flightNo = `${post ? "Post" : pick(AIRLINES)} ${100 + Math.floor(rnd() * 900)}`;
   while (used.has(flightNo));
   return {
     id: `p${state.seq}`,
     flightNo,
     dest: dest.id,
     type: type.id,
-    livery: pick(LIVERIES),
+    livery: post ? POST_LIVERY : pick(LIVERIES),
     gate: gates[0],
     stage: "anflug",
     done: [],
@@ -185,19 +199,19 @@ export function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "spawn": {
       if (!freeGates(state).includes(action.plane.gate)) return state;
-      const next = { ...state, planes: [...state.planes, action.plane], seq: state.seq + 1 };
+      const night = state.night && isPost(action.plane) ? { ...state.night, post: false } : state.night;
+      const next = { ...state, planes: [...state.planes, action.plane], seq: state.seq + 1, night };
       return next.selected ? next : { ...next, selected: action.plane.id };
     }
     case "landed":
       return update(state, action.id, (p) => (p.stage === "anflug" ? { stage: "einwinken" } : {}));
     case "parked":
       return update(state, action.id, (p) => (p.stage === "einwinken" ? { stage: "abfertigung" } : {}));
-    case "task": {
-      const job = requiredTasks("winter").find((j) => j.includes(action.task)) ?? [];
-      return update(state, action.id, (p) =>
-        p.stage === "abfertigung" && job.length > 0 && !job.some((t) => p.done.includes(t)) ? { done: [...p.done, action.task] } : {},
-      );
-    }
+    case "task":
+      return update(state, action.id, (p) => {
+        const job = requiredTasks("winter", p).find((j) => j.includes(action.task)) ?? [];
+        return p.stage === "abfertigung" && job.length > 0 && !job.some((t) => p.done.includes(t)) ? { done: [...p.done, action.task] } : {};
+      });
     case "pushed":
       return update(state, action.id, (p) => (readyForPushback(p, state.season) ? { stage: "abflug" } : {}));
     case "departed": {
@@ -221,8 +235,12 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, sound: action.on };
     case "tick": {
       const round = tickRound(state, action.now);
-      return round === state.round ? state : { ...state, round };
+      const night = state.night && action.now >= state.night.until ? null : state.night;
+      return round === state.round && night === state.night ? state : { ...state, round, night };
     }
+    case "night":
+      if (action.on === !!state.night) return state;
+      return { ...state, night: action.on ? { until: action.now + NIGHT_MS, post: true } : null };
     case "round":
       return action.planes.reduce((s, plane) => reducer(s, { type: "spawn", plane }), { ...state, round: { played: 0, lastPlay: action.now, departed: 0 } });
     case "reset": {
@@ -253,6 +271,7 @@ export function parseSave(raw: string | null): GameState | null {
       planes: data.planes.map((p) => ({ ...p, done: p.done.filter((t) => tasks.includes(t)) })),
       collected: Array.isArray(data.collected) ? data.collected : [],
       round: isRound(data.round) ? data.round : initialState().round,
+      night: null,
     };
   } catch {
     return null;

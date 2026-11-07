@@ -1,4 +1,5 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { aircraft, type AircraftType } from "@/game/data";
 import { K, P, pts, shade, type Pt } from "@/game/iso";
 
@@ -8,6 +9,98 @@ const SW = 2.4;
 
 /** set by IsoWorld: the camera is close enough for small details like windows and doors */
 export const Detail = createContext(true);
+
+/** set by Game: the airport lights are on */
+export const Night = createContext(false);
+
+const LampLayer = createContext<SVGGElement | null>(null);
+const FADE_MS = 2000;
+
+/** "on" while the night fades in, "still" when the scene opened at night, "off" while the morning fades in, null by day */
+export function useLit() {
+  const night = useContext(Night);
+  const [lit, setLit] = useState(night);
+  const [seen, setSeen] = useState(night);
+  const [switched, setSwitched] = useState(false);
+  if (night !== seen) {
+    setSeen(night);
+    setSwitched(true);
+  }
+  if (night && !lit) setLit(true);
+  useEffect(() => {
+    if (night || !lit) return;
+    const t = setTimeout(() => setLit(false), FADE_MS);
+    return () => clearTimeout(t);
+  }, [night, lit]);
+  return night ? (switched ? "on" : "still") : lit ? "off" : null;
+}
+
+/** the night shade's mask: shapes in holes cut the shade away, shapes in covers put it back on top */
+const ShadeMask = createContext<{ holes: SVGGElement; covers: SVGGElement } | null>(null);
+
+/** darkens its children at night; every <Lamp> inside shines above the shade */
+export function Lights({ children }: { children: ReactNode }) {
+  const lit = useLit();
+  const id = `night${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const [layer, setLayer] = useState<SVGGElement | null>(null);
+  const [holes, setHoles] = useState<SVGGElement | null>(null);
+  const [covers, setCovers] = useState<SVGGElement | null>(null);
+  const mask = useMemo(() => (lit && holes && covers ? { holes, covers } : null), [lit, holes, covers]);
+  return (
+    <ShadeMask.Provider value={mask}>
+      <LampLayer.Provider value={lit ? layer : null}>
+        {children}
+        {lit && (
+          <>
+            <mask id={id} maskUnits="userSpaceOnUse" x={-1e4} y={-1e4} width={2e4} height={2e4}>
+              <rect x={-1e4} y={-1e4} width={2e4} height={2e4} fill="#fff" />
+              <g ref={setHoles} className="night-hole" />
+              <g ref={setCovers} className="night-cover" />
+            </mask>
+            <rect className={`night-shade night-${lit}`} mask={`url(#${id})`} x={-1e4} y={-1e4} width={2e4} height={2e4} pointerEvents="none" />
+            <g ref={setLayer} className={`night-${lit}`} pointerEvents="none" />
+          </>
+        )}
+      </LampLayer.Provider>
+    </ShadeMask.Provider>
+  );
+}
+
+/** drawn only at night, above the shade; children need absolute coordinates */
+export function Lamp({ children }: { children: ReactNode }) {
+  const layer = useContext(LampLayer);
+  return layer ? createPortal(children, layer) : null;
+}
+
+function Masked({ children, part }: { children: ReactNode; part: "holes" | "covers" }) {
+  const mask = useContext(ShadeMask);
+  return (
+    <>
+      {children}
+      {mask && createPortal(<LampLayer.Provider value={null}>{children}</LampLayer.Provider>, mask[part])}
+    </>
+  );
+}
+
+/** a guide the child follows: at night the shade has a hole in its shape, so it stays as bright as by day */
+export const Bright = ({ children }: { children: ReactNode }) => <Masked part="holes">{children}</Masked>;
+
+/** something that drives over a <Bright> guide: the shade stays on it */
+export const Cover = ({ children }: { children: ReactNode }) => <Masked part="covers">{children}</Masked>;
+
+export function Glow({ at, r, color, className }: { at: Pt; r: number; color: string; className?: string }) {
+  return (
+    <Lamp>
+      <g className={className}>
+        <circle cx={at[0]} cy={at[1]} r={r * 3} fill={color} opacity={0.3} />
+        <circle cx={at[0]} cy={at[1]} r={r} fill={color} />
+        <circle cx={at[0]} cy={at[1]} r={r * 0.5} fill="#ffffff" />
+      </g>
+    </Lamp>
+  );
+}
+
+export const LIGHT = { red: "#ff3b30", green: "#3cf06e", white: "#f4f8ff", amber: "#ffa62b", warm: "#ffe08a", blue: "#4f8dff" };
 
 export interface Drawable {
   key: string;
@@ -172,8 +265,9 @@ export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, 
   let n: Pt = [-d[1], d[0]];
   if (n[1] < 0) n = [-n[0], -n[1]];
   const rk = r * K;
-  const bodyColor = "#f3f9ff";
-  const belly = "#d3e2ef";
+  const freighter = !!t.freighter;
+  const bodyColor = freighter ? livery : "#f3f9ff";
+  const belly = freighter ? shade(livery, 0.86) : "#d3e2ef";
   const facing = Math.cos(heading) + Math.sin(heading) > 0;
   const hump = type === "B747";
   const upper = type === "A380";
@@ -349,12 +443,13 @@ export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, 
         <line {...line(nose, body)} stroke={bodyColor} strokeWidth={rk * 2} />
         {deck > 0 && <line {...line(lift(add(nose, d, -rk * 0.6), -deck), lift(at((hump ? 0.18 : -0.25) * L, 0, zc), -deck))} stroke={bodyColor} strokeWidth={rk * 2} />}
         <line {...line(add(nose, n, rk * 0.62), add(body, n, rk * 0.62))} stroke={belly} strokeWidth={rk * 0.76} />
-        <line {...line(add(nose, n, rk * 0.42), add(body, n, rk * 0.42))} stroke={livery} strokeWidth={rk * 0.5} />
+        <line {...line(add(nose, n, rk * 0.42), add(body, n, rk * 0.42))} stroke={freighter ? shade(livery, 0.72) : livery} strokeWidth={rk * 0.5} />
         <line {...line(add(add(nose, n, -rk * 0.62), d, -rk * 0.8), add(body, n, -rk * 0.62))} stroke="#ffffff" strokeWidth={rk * 0.36} />
         {deck > 0 && <line {...line(lift(add(add(nose, n, -rk * 0.6), d, -rk * 1.2), -deck), lift(add(at((hump ? 0.2 : -0.24) * L, 0, zc), n, -rk * 0.6), -deck))} stroke="#ffffff" strokeWidth={rk * 0.3} />}
         {detail ? (
           <g>
-            <path d={windows(winFrom, winTo, [frontDoor, rearDoor])} stroke="#2c4a6b" strokeWidth={rk * 0.22} />
+            {!freighter && <path d={windows(winFrom, winTo, [frontDoor, rearDoor])} stroke="#2c4a6b" strokeWidth={rk * 0.22} />}
+            {!freighter && <Lamp><path d={windows(winFrom, winTo, [frontDoor, rearDoor])} stroke={LIGHT.warm} strokeWidth={rk * 0.22} opacity={0.8} /></Lamp>}
             {deck > 0 && <path d={windows(lift(add(along(rk * 1.6), n, winOff), -deck), lift(add(at((hump ? 0.22 : -0.22) * L, 0, zc), n, winOff), -deck), [])} stroke="#2c4a6b" strokeWidth={rk * 0.2} />}
             <path d={[pane(frontDoor, rk * 0.34, rk * 0.8), pane(rearDoor, rk * 0.3, rk * 0.66), pane(lift(cargoDoor, rk * 0.5), rk * 0.5, rk * 0.42)].join("")} fill="none" stroke="#8ea3b8" strokeWidth={1.6} strokeLinejoin="round" />
             <path d={cockpit.map((c, i) => pane(c, rk * (i === 0 ? 0.24 : 0.3), rk * (i === 0 ? 0.3 : 0.36))).join("")} fill="#2c4a6b" stroke={OUT} strokeWidth={1} strokeLinejoin="round" />
@@ -362,7 +457,7 @@ export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, 
           </g>
         ) : (
           <g>
-            <line {...line(add(add(nose, d, -rk * 1.4), n, winOff), add(body, n, winOff))} stroke="#2c4a6b" strokeWidth={rk * 0.34} strokeDasharray={`0.1 ${(rk * 0.62).toFixed(1)}`} />
+            {!freighter && <line {...line(add(add(nose, d, -rk * 1.4), n, winOff), add(body, n, winOff))} stroke="#2c4a6b" strokeWidth={rk * 0.34} strokeDasharray={`0.1 ${(rk * 0.62).toFixed(1)}`} />}
             <line {...line(lift(add(add(nose, d, -rk * 0.55), n, -rk * 0.15), -deck), lift(add(add(nose, d, -rk * 0.85), n, -rk * 0.15), -deck))} stroke="#2c4a6b" strokeWidth={rk * 0.42} />
           </g>
         )}
@@ -375,8 +470,37 @@ export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, 
       </g>
       <polygon points={pts(fin)} fill={livery} stroke={OUT} strokeWidth={SW} strokeLinejoin="round" />
       <polygon points={pts([fin[1], fin[2], at(-0.5 * L, 0, zc + r + 0.12 * L), at(-0.44 * L, 0, zc + r + 0.12 * L)])} fill="#ffffff" opacity={0.5} />
+      {freighter && <Parcel at={at(-0.445 * L, 0, zc + r * 0.6 + 0.07 * L)} size={rk * 0.9} />}
+      <Lamp>
+        <polygon points={pts(fin)} fill={livery} opacity={0.6} />
+        {freighter && <Parcel at={at(-0.445 * L, 0, zc + r * 0.6 + 0.07 * L)} size={rk * 0.9} />}
+      </Lamp>
       {stab(sideOrder[1])}
       {wing(sideOrder[1])}
+      <Glow at={at(-0.5 * L, 0, zc + r * 0.55)} r={rk * 0.14} color={LIGHT.white} />
+      <Glow at={lift(at(-0.02 * L, 0, zc + r), -deck)} r={rk * 0.16} color={LIGHT.red} className="beacon" />
+      {([1, -1] as const).map((side) => {
+        const w = wingPolygon(g, side);
+        const tip: Pt = [(w[1][0] + w[2][0]) / 2, (w[1][1] + w[2][1]) / 2];
+        return (
+          <g key={side}>
+            <Glow at={tip} r={rk * 0.15} color={side === 1 ? LIGHT.red : LIGHT.green} />
+            <Glow at={tip} r={rk * 0.2} color={LIGHT.white} className="strobe" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** a brown cardboard box with tape and a white label, upright on screen */
+export function Parcel({ at, size }: { at: Pt; size: number }) {
+  const h = size / 2;
+  return (
+    <g stroke={OUT} strokeWidth={Math.max(1, size * 0.08)} strokeLinejoin="round">
+      <rect x={at[0] - h} y={at[1] - h} width={size} height={size} rx={size * 0.08} fill="#c98a4b" />
+      <line x1={at[0]} y1={at[1] - h} x2={at[0]} y2={at[1] + h} stroke="#e8c07a" strokeWidth={size * 0.2} />
+      <rect x={at[0] - h * 0.8} y={at[1] + h * 0.2} width={size * 0.35} height={size * 0.25} fill="#ffffff" strokeWidth={Math.max(0.6, size * 0.05)} />
     </g>
   );
 }
@@ -466,11 +590,19 @@ export function Bus({ x, y, heading, color = "#f6c02c" }: V & { color?: string }
               <polyline points={pts([f.at(0.22, 2.58), f.at(0.78, 2.58)])} stroke="#ffb347" strokeWidth={2} strokeDasharray="3 2" fill="none" />
               {[0.16, 0.84].map((s) => {
                 const p = f.at(s, 0.5);
-                return <circle key={s} cx={p[0]} cy={p[1]} r={2.6} fill="#fff7d0" stroke={OUT} strokeWidth={1.2} />;
+                return (
+                  <g key={s}>
+                    <circle cx={p[0]} cy={p[1]} r={2.6} fill="#fff7d0" stroke={OUT} strokeWidth={1.2} />
+                    <Glow at={p} r={2.6} color="#fff3c0" />
+                  </g>
+                );
               })}
             </g>
           ) : isBack(f) ? (
-            <polygon points={windowPoly(f, 0.15, 0.85, 1.5, 2.45)} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />
+            <g>
+              <polygon points={windowPoly(f, 0.15, 0.85, 1.5, 2.45)} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />
+              {[0.12, 0.88].map((s) => <Glow key={s} at={f.at(s, 0.6)} r={2.2} color={LIGHT.red} />)}
+            </g>
           ) : (
             <g>
               <polygon points={windowPoly(f, 0.06, 0.94, 1.45, 2.5)} fill="url(#glass)" stroke={OUT} strokeWidth={1.6} />
@@ -488,6 +620,10 @@ export function Bus({ x, y, heading, color = "#f6c02c" }: V & { color?: string }
         }
       </Box>
       <Box x={x - Math.cos(heading) * 1.5} y={y - Math.sin(heading) * 1.5} heading={heading} l={3} w={1.5} h={0.35} z={3.3} color="#dfe3e8" />
+      <Glow at={L(-1.5, 0, 3.9)} r={2.4} color={LIGHT.amber} className="blink" />
+      <Lamp>
+        <polygon points={pts([L(5.8, -1.1, 0.5), L(5.8, 1.1, 0.5), L(17, 4, 0), L(17, -4, 0)])} fill="#fff3c0" opacity={0.3} />
+      </Lamp>
     </g>
   );
 }
@@ -529,6 +665,7 @@ export function FuelTruck({ x, y, heading }: V) {
       <circle cx={reel[0]} cy={reel[1]} r={6} fill="#30343c" stroke={OUT} strokeWidth={1.4} />
       <circle cx={reel[0]} cy={reel[1]} r={3.8} fill="none" stroke="#e8574a" strokeWidth={2} />
       <FaceText at={L(-1, 1.3, 1.9)} heading={heading} size={13}>Treibstoff</FaceText>
+      <Glow at={L(3.9, 0, 3.7)} r={2.4} color={LIGHT.amber} className="blink" />
     </g>
   );
 }
@@ -552,6 +689,7 @@ export function Tug({ x, y, heading, color = "#eef1f4" }: V & { color?: string }
         )}
       </Box>
       <circle cx={L(-1.2, 0, 3.3)[0]} cy={L(-1.2, 0, 3.3)[1]} r={3} fill="#ffa62b" stroke={OUT} strokeWidth={1.2} className="blink" />
+      <Glow at={L(-1.2, 0, 3.3)} r={2.4} color={LIGHT.amber} className="blink" />
     </g>
   );
 }
@@ -607,6 +745,7 @@ export function DeiceTruck({ x, y, heading, basket }: V & { basket?: Pt }) {
       <rect x={b[0] - 11} y={b[1] - 4} width={22} height={14} rx={3} fill="#f39a35" stroke={OUT} strokeWidth={2} />
       <circle cx={b[0]} cy={b[1] - 9} r={5} fill="#ffd9a8" stroke={OUT} strokeWidth={1.5} />
       <path d={`M${b[0] - 6},${b[1] - 11} a6,6 0 0 1 12,0 z`} fill="#f6c02c" stroke={OUT} strokeWidth={1.5} />
+      <Glow at={L(3.8, 0, 5.3)} r={2.4} color={LIGHT.amber} className="blink" />
     </g>
   );
 }
@@ -627,6 +766,7 @@ export function BeltLoader({ x, y, heading, top }: V & { top: Pt }) {
       <line {...line(bottom, top)} stroke="#6f7787" strokeWidth={13} strokeDasharray="3 6" className="belt-move" />
       <line {...line([bottom[0], bottom[1] - 9], [top[0], top[1] - 9])} stroke={OUT} strokeWidth={5} strokeLinecap="round" />
       <line {...line([bottom[0], bottom[1] - 9], [top[0], top[1] - 9])} stroke="#f6c02c" strokeWidth={2.6} strokeLinecap="round" />
+      <Glow at={L(2.6, 0, 1.6)} r={2.2} color={LIGHT.amber} className="blink" />
     </g>
   );
 }
@@ -683,8 +823,16 @@ export function Person({ at, scale = 1, seed = 0, pose = "stand" }: { at: Pt; sc
   const helmet = seed % 2 === 0;
   const s = scale * (K / 8);
   const hand = (p: Pt) => <circle cx={p[0]} cy={p[1]} r={2.2} fill={skin} stroke={OUT} strokeWidth={1.2} />;
+  const place = `translate(${at[0]},${at[1]}) scale(${s})`;
+  const bob = pose === "wave" ? "bob" : undefined;
   return (
-    <g transform={`translate(${at[0]},${at[1]}) scale(${s})`} className={pose === "wave" ? "bob" : undefined}>
+    <g transform={place} className={bob}>
+      <Lamp>
+        <g transform={place} className={bob}>
+          <path d="M-6.4,-18.5 h12.8 M-6.4,-14.5 h12.8" stroke="#ffffff" strokeWidth={6} opacity={0.35} strokeLinecap="round" />
+          <path d="M-6.4,-18.5 h12.8 M-6.4,-14.5 h12.8" stroke="#ffffff" strokeWidth={2.4} />
+        </g>
+      </Lamp>
       <ellipse cx={0} cy={0} rx={8} ry={3.2} fill="rgba(30,40,60,0.2)" />
       <rect x={-4.8} y={-13} width={4.2} height={13} rx={2} fill="#2f4a7a" stroke={OUT} strokeWidth={1.5} />
       <rect x={0.6} y={-13} width={4.2} height={13} rx={2} fill="#2f4a7a" stroke={OUT} strokeWidth={1.5} />
@@ -781,8 +929,9 @@ export function Cone({ at }: { at: Pt }) {
 export const SIDE_MAIN_GEAR_X = 68;
 export function SidePlane({ type, color, width = 96, gear }: { type: AircraftType; color: string | null; width?: number; gear?: number }) {
   const c = color ?? "#b9c2cc";
-  const body = color ? "#f3f9ff" : "#d5dbe1";
-  const belly = color ? "#d3e2ef" : "#c3cad2";
+  const cargo = !!type.freighter;
+  const body = color ? (cargo ? c : "#f3f9ff") : "#d5dbe1";
+  const belly = color ? (cargo ? shade(c, 0.86) : "#d3e2ef") : "#c3cad2";
   const long = type.longHaul;
   const shift = long ? 4 : 0;
   const end = long ? 98 : 92;
@@ -806,9 +955,10 @@ export function SidePlane({ type, color, width = 96, gear }: { type: AircraftTyp
         {type.id === "A380" && <path d="M28,20 C40,12 96,12 108,24 L28,22 Z" fill={body} />}
         <path d={`M10.4,30 L${nose - 0.4},30 C${nose - 1},34 104,35.6 96,35.6 L24,35.6 C16,35.6 11,34 10.4,30 Z`} fill={belly} stroke="none" />
         <path d={hull} fill="none" />
-        <path d={`M24,32.6 L${end + 6},32.6`} stroke={c} strokeWidth={3.4} />
+        <path d={`M24,32.6 L${end + 6},32.6`} stroke={cargo ? shade(c, 0.72) : c} strokeWidth={3.4} />
         <path d={`M30,22.2 L${end - 2},22.2`} stroke="#ffffff" strokeWidth={1.6} strokeLinecap="round" />
-        <path d={windows(24.4, 34, end - 6, [frontDoor, 28])} stroke="#2c4a6b" strokeWidth={2.2} strokeLinecap="round" />
+        {!cargo && <path d={windows(24.4, 34, end - 6, [frontDoor, 28])} stroke="#2c4a6b" strokeWidth={2.2} strokeLinecap="round" />}
+        {cargo && color && <Parcel at={[15, 17]} size={7} />}
         {type.id === "A380" && <path d={windows(16.6, 38, 94, [])} stroke="#2c4a6b" strokeWidth={2} strokeLinecap="round" />}
         {type.id === "B747" && <path d={windows(16.4, 80, 92, [])} stroke="#2c4a6b" strokeWidth={2} strokeLinecap="round" />}
         <g fill="none" stroke="#8ea3b8" strokeWidth={0.9}>

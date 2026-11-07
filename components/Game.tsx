@@ -14,6 +14,7 @@ import { WorldMap } from "./scenes/WorldMap";
 import { IsoWorld, parkedPose, planeDrawable } from "./World";
 import { Banner, BigButton, Flag, Modal, RoundButton, Stars } from "./ui";
 import { Icon } from "./icons";
+import { Night } from "./art";
 import { GATE_COLORS, PRAISE, TOOLS, aircraft, destination, tool, type TaskId, type ToolId } from "@/game/data";
 import { H, W } from "@/game/iso";
 import { setSound, sfx } from "@/game/sound";
@@ -22,6 +23,7 @@ import {
   arrivals,
   createPlane,
   initialState,
+  isPost,
   loadGame,
   mayArrive,
   openJobs,
@@ -72,6 +74,7 @@ const screenLabel = (s: Screen) =>
   s === "tower" ? "Zum Tower" : s === "vorfeld" ? "Zum Vorfeld" : s === "weltkarte" ? "Zur Weltkarte" : tool(s as ToolId).label;
 const nextLabel = (s: Screen) => (s === "pushback" ? "Startklar! Zurückschieben" : s === "einwinker" ? "Jetzt einwinken!" : s === "start" ? "Ab zur Startbahn!" : screenLabel(s));
 const TICK_MS = 5000;
+const MORNING = "Guten Morgen! Die Sonne geht auf.";
 const minutes = (n: number) => `${n} ${n === 1 ? "Minute" : "Minuten"}`;
 const planesWord = (n: number) => `${n} ${n === 1 ? "Flugzeug" : "Flugzeuge"}`;
 
@@ -176,6 +179,7 @@ export default function Game() {
       if (next === s) return;
       stateRef.current = next;
       dispatch({ type: "tick", now: t });
+      if (s.night && !next.night) showToast(MORNING);
       if (!roundOver(s) && roundOver(next)) {
         // the last take-off before 20 minutes already shows "Guten Flug!": keep its text
         setCelebration((c) => roundEnd(next, c?.text));
@@ -188,7 +192,7 @@ export default function Game() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", step);
     };
-  }, [playing, startRound]);
+  }, [playing, startRound, showToast]);
 
   const arrive = mayArrive(state);
   useEffect(() => {
@@ -199,7 +203,7 @@ export default function Game() {
       if (!plane) return;
       dispatch({ type: "spawn", plane });
       const d = destination(plane.dest);
-      showToast(`Neues Flugzeug im Anflug: Flug ${plane.flightNo} aus ${d.city}! Ab in den Tower!`);
+      showToast(isPost(plane) ? `Das Postflugzeug kommt! Flug ${plane.flightNo} aus ${d.city} bringt Pakete.` : `Neues Flugzeug im Anflug: Flug ${plane.flightNo} aus ${d.city}! Ab in den Tower!`);
     }, 7000);
     return () => clearTimeout(t);
   }, [playing, arrive, state.planes.length, showToast]);
@@ -246,6 +250,9 @@ export default function Game() {
       if (!plane) return showToast("Noch wartet kein Flugzeug auf der Rollbahn. Erst mit dem Schlepper zurückschieben!");
     } else {
       plane = pick((p) => openTasks(p, state.season).includes(id));
+      if (!plane && (id === "bus" || id === "finger") && planes.some((p) => p.stage === "abfertigung" && isPost(p))) {
+        return showToast("Das Postflugzeug hat keine Passagiere. Hier steigt niemand ein!");
+      }
       if (!plane) {
         return showToast(
           planes.some((p) => p.stage === "abfertigung")
@@ -266,7 +273,8 @@ export default function Game() {
   const onTaskDone = (task: TaskId) => () => {
     if (!active || !openTasks(active, state.season).includes(task)) return;
     dispatch({ type: "task", id: active.id, task });
-    finish(active, PRAISE[Math.floor(Math.random() * PRAISE.length)], TASK_DONE_TEXT[task], { ...active, done: [...active.done, task] });
+    const text = task === "gepaeck" && isPost(active) ? "Alle Pakete sind an Bord." : TASK_DONE_TEXT[task];
+    finish(active, PRAISE[Math.floor(Math.random() * PRAISE.length)], text, { ...active, done: [...active.done, task] });
   };
 
   const onParked = () => {
@@ -313,6 +321,13 @@ export default function Game() {
     });
   };
 
+  const toggleNight = () => {
+    sfx.click();
+    const on = !state.night;
+    dispatch({ type: "night", on, now: Date.now() });
+    showToast(on ? "Licht an! Es wird Nacht am Flughafen." : MORNING);
+  };
+
   const isTask = (s: Screen): s is TaskId => ["bus", "finger", "gepaeck", "tanken", "enteisung"].includes(s);
   const latest = useRef<{ done: () => void; landed: (id: string) => void }>({ done: () => {}, landed: () => {} });
   useEffect(() => {
@@ -332,7 +347,7 @@ export default function Game() {
       case "vorfeld":
         return <Apron state={state} onSelect={(id) => { sfx.click(); dispatch({ type: "select", id }); }} onOpen={(s, id) => (s === "tower" || s === "weltkarte" ? go(s, id) : openTool(s as ToolId, id))} />;
       case "tower":
-        return <Tower state={state} setHint={setHint} onLanded={onLandedStable} now={now} paused={paused} onParent={() => setPanel("eltern")} />;
+        return <Tower state={state} setHint={setHint} onLanded={onLandedStable} now={now} paused={paused} onParent={() => setPanel("eltern")} onLight={toggleNight} />;
       case "weltkarte":
         return <WorldMap state={state} />;
     }
@@ -364,7 +379,7 @@ export default function Game() {
   return (
     <div className="viewport">
       <div className="stage" style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>
-        {renderScene()}
+        <Night.Provider value={!!state.night}>{renderScene()}</Night.Provider>
 
         {screen !== "title" && (
           <>
@@ -655,10 +670,10 @@ function Checklist({ plane, state, onClose, onGo }: { plane: Plane; state: GameS
   const rows: { label: string; done: boolean; screen: Screen; icon: string; enabled: boolean }[][] = [
     [{ label: "Landen (Tower)", done: landed, screen: "tower", icon: "radar", enabled: !landed }],
     [{ label: "Einwinken", done: parked, screen: "einwinker", icon: "einwinker", enabled: plane.stage === "einwinken" }],
-    ...requiredTasks(state.season).map((job) => {
+    ...requiredTasks(state.season, plane).map((job) => {
       const used = job.find((t) => plane.done.includes(t));
       const done = !!used || plane.stage === "abflug";
-      return (done ? [used ?? job[0]] : job).map((t) => ({ label: tool(t).label, done, screen: t as Screen, icon: t, enabled: parked && !done }));
+      return (done ? [used ?? job[0]] : job).map((t) => ({ label: t === "gepaeck" && isPost(plane) ? "Pakete einladen" : tool(t).label, done, screen: t as Screen, icon: t, enabled: parked && !done }));
     }),
     [{ label: "Zurückschieben", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) }],
     [{ label: "Start", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" }],
@@ -699,6 +714,7 @@ function Help({ onClose }: { onClose: () => void }) {
     ["einwinker", "Winke das Flugzeug mit beiden Leuchtstäben bis zur STOP-Linie."],
     ["checkliste", "Erledige alle Aufgaben: Passagiere mit dem Bus oder mit dem Finger einsteigen lassen, Gepäck und Tanken. Im Winter auch Enteisen."],
     ["pushback", "Schiebe das Flugzeug mit dem Schlepper auf die gelbe Linie. Guten Flug!"],
+    ["lamp", "Im Tower schaltest du das Licht an. Dann wird es Nacht, und ein gelbes Postflugzeug bringt Pakete."],
     ["globe", "Auf der Weltkarte siehst du, wohin deine Flugzeuge fliegen, und sammelst Flugzeug-Sticker."],
   ];
   return (

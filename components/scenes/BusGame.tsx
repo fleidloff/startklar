@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { Bus, Passenger, Plane, type Drawable } from "../art";
+import { Bright, Bus, Cover, Passenger, Plane, type Drawable } from "../art";
 import { IsoWorld } from "../World";
 import { busWait, otherPlanes, servicePoints, turnaroundProps } from "./Apron";
 import { Hand } from "./Tower";
@@ -115,11 +115,23 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
     ...turnaroundProps(plane, false),
     { key: "bus", depth: bus.x + bus.y, node: <Bus {...bus} /> },
     ...people,
-  ];
+  ].map((d) => ({ ...d, node: <Cover>{d.node}</Cover> }));
 
   const c = P((start[0] + target[0]) / 2, (start[1] + target[1]) / 2);
   const t = P(target[0], target[1]);
   const busScreen = P(bus.x, bus.y, 3);
+  const guide = (
+    <g>
+      {phase === "draw" && (
+        <g className="pulse-svg" style={{ transformOrigin: `${t[0]}px ${t[1]}px` }}>
+          <ellipse cx={t[0]} cy={t[1]} rx={56} ry={30} fill="rgba(76,187,108,0.35)" stroke="#4cbb6c" strokeWidth={5} strokeDasharray="10 7" />
+        </g>
+      )}
+      {(drawing || (drive && phase === "drive")) && (
+        <polyline points={pts((drawing ?? drive?.points ?? []).map(([x, yy]) => P(x, yy)))} fill="none" stroke="#f6c02c" strokeWidth={8} strokeDasharray="14 10" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </g>
+  );
   return (
     <div className="scene">
       <IsoWorld
@@ -135,18 +147,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
         onPointerUp={up}
         onPointerCancel={up}
         label="Vorfeldbus: Zeichne den Weg vom Bus zur Treppe"
-        under={
-          <g>
-            {phase === "draw" && (
-              <g className="pulse-svg" style={{ transformOrigin: `${t[0]}px ${t[1]}px` }}>
-                <ellipse cx={t[0]} cy={t[1]} rx={56} ry={30} fill="rgba(76,187,108,0.35)" stroke="#4cbb6c" strokeWidth={5} strokeDasharray="10 7" />
-              </g>
-            )}
-            {(drawing || (drive && phase === "drive")) && (
-              <polyline points={pts((drawing ?? drive?.points ?? []).map(([x, yy]) => P(x, yy)))} fill="none" stroke="#f6c02c" strokeWidth={8} strokeDasharray="14 10" strokeLinecap="round" strokeLinejoin="round" />
-            )}
-          </g>
-        }
+        under={<Bright>{guide}</Bright>}
         overlay={
           phase === "draw" &&
           !drawing && (

@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
-import { BaggageCart, Box, Cone, Cylinder, FaceText, OUT, Person, Plane, Tug, Wheel, Detail, local, type Drawable } from "./art";
+import { BaggageCart, Box, Cone, Cylinder, FaceText, Glow, LIGHT, Lamp, Lights, OUT, Person, Plane, Tug, Wheel, Detail, local, type Drawable } from "./art";
 import { P, arc, gateY, pts, shade, viewBox, type Pt } from "@/game/iso";
 import type { Plane as PlaneT, Season } from "@/game/state";
 import { aircraft } from "@/game/data";
@@ -92,6 +92,61 @@ const chevrons = (() => {
   return d;
 })();
 
+/** zero-length round-capped segments: one path draws a whole row of lights */
+const dots = (list: Pt[]) => list.map(([x, y]) => `M${x.toFixed(1)},${y.toFixed(1)}h0.01`).join("");
+const row = (x0: number, y0: number, x1: number, y1: number, step: number) => {
+  const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / step);
+  return [...Array(n + 1).keys()].map((i) => P(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n));
+};
+const GROUND_LIGHTS: [string, Pt[]][] = [
+  [LIGHT.green, [...row(80, -46, 80, 226, 8), ...row(88, -39, 112, -39, 8)]],
+  [LIGHT.blue, [...row(63, -48, 63, 228, 16), ...row(95, -28, 95, 228, 16)]],
+  [LIGHT.white, [...row(105.5, -118, 105.5, 298, 16), ...row(134.5, -118, 134.5, 298, 16), ...row(120, -110, 120, 290, 20)]],
+  [LIGHT.green, row(106, 276, 134, 276, 4)],
+  [LIGHT.red, row(106, -116, 134, -116, 4)],
+];
+
+function GroundLights() {
+  return (
+    <Lamp>
+      <g strokeLinecap="round" fill="none">
+        {GROUND_LIGHTS.map(([color, list], i) => (
+          <g key={i}>
+            <path d={dots(list)} stroke={color} strokeWidth={14} opacity={0.3} />
+            <path d={dots(list)} stroke={color} strokeWidth={5} />
+            <path d={dots(list)} stroke="#ffffff" strokeWidth={2} />
+          </g>
+        ))}
+      </g>
+    </Lamp>
+  );
+}
+
+/** floodlight mast in front of the terminal, shining onto the stands */
+function Mast({ x, y }: { x: number; y: number }) {
+  const head = P(x + 0.6, y, 22.4);
+  const pool = P(x + 18, y, 0);
+  const R = 20;
+  const rx = 1.2247 * R * 8;
+  const ry = 0.7071 * R * 8;
+  return (
+    <g>
+      <Cylinder x={x} y={y} z0={0} z1={22} r={0.35} color="#9aa3ad" />
+      <Box x={x} y={y} l={0.9} w={3.4} h={0.9} z={22} color="#5c6168" />
+      <Lamp>
+        <polygon points={pts([head, [pool[0] - rx * 0.7, pool[1]], [pool[0] + rx * 0.7, pool[1]]])} fill={LIGHT.warm} opacity={0.07} />
+        <ellipse cx={pool[0]} cy={pool[1]} rx={rx} ry={ry} fill={LIGHT.warm} opacity={0.12} />
+        <ellipse cx={pool[0]} cy={pool[1]} rx={rx * 0.6} ry={ry * 0.6} fill={LIGHT.warm} opacity={0.08} />
+      </Lamp>
+      {[-1.1, 0, 1.1].map((o) => (
+        <Glow key={o} at={P(x + 0.5, y + o, 22.4)} r={2.6} color={LIGHT.warm} />
+      ))}
+    </g>
+  );
+}
+
+const MASTS = [-4, 59, 117, 175].map((y) => ({ key: `mast${y}`, depth: 0.8 + y, node: <Mast x={0.8} y={y} /> }));
+
 function SnowPiles() {
   const piles: [number, number, number][] = [[64, -20, 3], [64, 60, 4], [64, 150, 3], [98, 40, 3], [98, 180, 4], [140, 10, 5], [-4, 210, 4]];
   return (
@@ -159,6 +214,9 @@ function Terminal({ season }: { season: Season }) {
         }
       </Box>
       <Box x={-9} y={95} l={19} w={291} h={0.9} z={11} color="#c3ccd6" top={winter ? "#ffffff" : "#9aa6b3"} />
+      <Lamp>
+        <polygon points={pts([P(0, -47, 2), P(0, 237, 2), P(0, 237, 9.5), P(0, -47, 9.5)])} fill="#ffeeb0" opacity={0.65} />
+      </Lamp>
       {[0, 1, 2].map((g) => {
         const y = gateY(g);
         const a = P(0.2, y + 6, 10.4);
@@ -200,6 +258,15 @@ function Tower({ season }: { season: Season }) {
           </g>
         );
       })()}
+      <Lamp>
+        {(() => {
+          const rx = 1.2247 * 5.2 * 8;
+          const ry = 0.7071 * 5.2 * 8;
+          const [bx, by] = P(x, y, 27.6);
+          const ty = P(x, y, 31.4)[1];
+          return <path d={`M${bx - rx},${ty} L${bx - rx},${by} A${rx},${ry} 0 0 0 ${bx + rx},${by} L${bx + rx},${ty} A${rx},${ry} 0 0 1 ${bx - rx},${ty} Z`} fill={LIGHT.warm} opacity={0.55} />;
+        })()}
+      </Lamp>
       <Cylinder x={x} y={y} z0={31.5} z1={32.6} r={5.6} color={winter ? "#ffffff" : "#e9edf2"} />
       {(() => {
         const a = P(x, y, 32.6);
@@ -214,6 +281,7 @@ function Tower({ season }: { season: Season }) {
               <ellipse cx={0} cy={-12} rx={9} ry={4} fill="#eef2f6" stroke={OUT} strokeWidth={1.8} transform="rotate(-18 0 -12)" />
             </g>
             <circle cx={b[0]} cy={b[1]} r={4} fill="#e8574a" stroke={OUT} strokeWidth={1.5} className="blink" />
+            <Glow at={b} r={3.5} color={LIGHT.red} className="blink" />
           </g>
         );
       })()}
@@ -283,7 +351,14 @@ export function Bridge({ gate, cab, z }: { gate: number; cab: Pt; z: number }) {
       depth: cab[0] + cab[1],
       node: (
         <Box x={cab[0]} y={cab[1]} l={1.8} w={3.2} h={3.4} z={z - 0.2} color="#dfe5ec">
-          {(f) => <polygon points={pts([f.at(0.2, 1.6), f.at(0.8, 1.6), f.at(0.8, 2.8), f.at(0.2, 2.8)])} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />}
+          {(f) => (
+            <g>
+              <polygon points={pts([f.at(0.2, 1.6), f.at(0.8, 1.6), f.at(0.8, 2.8), f.at(0.2, 2.8)])} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />
+              <Lamp>
+                <polygon points={pts([f.at(0.2, 1.6), f.at(0.8, 1.6), f.at(0.8, 2.8), f.at(0.2, 2.8)])} fill="#fff1b8" opacity={0.85} />
+              </Lamp>
+            </g>
+          )}
         </Box>
       ),
     },
@@ -352,6 +427,7 @@ const WorldContent = memo(function WorldContent({ season, items, under }: { seas
     <>
       <Patterns />
       <Ground season={season} />
+      <GroundLights />
       {under}
       <Terminal season={season} />
       {items.map((d) => (
@@ -386,6 +462,7 @@ export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, un
       if (showProps) list.push(...propsForGate(g, season));
     }
     list.push({ key: "tower", depth: -40, node: <Tower season={season} /> });
+    list.push(...MASTS);
     return list.sort((a, b) => a.depth - b.depth);
   }, [drawables, planes, docked, ownBridge, showProps, season]);
 
@@ -403,7 +480,9 @@ export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, un
   return (
     <svg ref={svgRef} className={className} style={style} viewBox={viewBox(view.x, view.y, view.zoom / OVERSCAN)} preserveAspectRatio="xMidYMid slice" role="img" aria-label={label} {...handlers}>
       <Detail value={view.zoom >= 1}>
-        <WorldContent season={season} items={items} under={under} />
+        <Lights>
+          <WorldContent season={season} items={items} under={under} />
+        </Lights>
         {typeof overlay === "function" ? overlay(view.zoom) : overlay}
       </Detail>
     </svg>

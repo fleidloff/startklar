@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { OUT, SIDE_MAIN_GEAR_X, SidePlane } from "../art";
+import { LIGHT, Lamp, Lights, OUT, SIDE_MAIN_GEAR_X, SidePlane, useLit } from "../art";
 import { Hand } from "./Tower";
 import { aircraft, destination } from "@/game/data";
 import { capture, clamp, svgPoint } from "@/game/iso";
@@ -15,6 +15,7 @@ const GROUND = 760;
 const PLANE_X = 640;
 const PLANE_W = 560;
 const SCALE = PLANE_W / 120;
+const STARS = [[90, 80, 3], [260, 160, 2], [420, 60, 2.5], [610, 120, 2], [820, 50, 3], [990, 140, 2], [1330, 70, 2.5], [1490, 150, 2], [1560, 40, 3]];
 const THROTTLE = { x0: 210, x1: 540, y: 915 };
 const STICK = { x: 1320, top: 520, bottom: 860 };
 const CLOUDS = [
@@ -88,14 +89,15 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
   }, [onDone]);
 
   const kmh = Math.round((view.v * KMH) / 10) * 10;
+  const ready = view.phase === "abheben" && view.v >= LIFT;
   useEffect(() => {
-    if (view.phase === "schub") {
+    if (view.phase === "schub" || (view.phase === "abheben" && !ready)) {
       if (view.tooSlow) setHint("Noch nicht schnell genug! Erst bis zur grünen Fahne.");
       else setHint(view.v < 0.03 ? "Schieb den Schubhebel nach vorne!" : `Tempo ${kmh} km/h – schneller!`);
     } else if (view.phase === "abheben") setHint("Jetzt abheben! Zieh den Knüppel nach oben!");
     else if (view.phase === "fahrwerk") setHint("Wir fliegen! Das Fahrwerk fährt ein.");
     else setHint(`Guten Flug nach ${dest.city}!`);
-  }, [view.phase, view.tooSlow, view.v < 0.03, kmh, dest.city, setHint]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view.phase, ready, view.tooSlow, view.v < 0.03, kmh, dest.city, setHint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setThrottle = (value: number) => {
     sim.current.throttle = clamp(value, 0, 1);
@@ -122,6 +124,7 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
   };
 
   const winter = state.season === "winter";
+  const lit = useLit();
   const onGround = view.alt <= 0;
   const flyX = view.fly * 420;
   const flyY = view.fly * 260;
@@ -138,8 +141,15 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
             <stop offset="1" stopColor={winter ? "#e6f1f8" : "#d4effc"} />
           </linearGradient>
         </defs>
+        <Lights>
         <rect width={1600} height={1000} fill="url(#tsky)" />
-        <circle cx={1180} cy={190 + view.alt * 0.2} r={60} fill="#ffe27a" stroke={OUT} strokeWidth={4} />
+        {!lit && <circle cx={1180} cy={190 + view.alt * 0.2} r={60} fill="#ffe27a" stroke={OUT} strokeWidth={4} />}
+        <Lamp>
+          <g fill="#fff8d8">
+            {STARS.map(([x, y, r]) => <circle key={x} cx={x} cy={y + view.alt * 0.1} r={r} />)}
+          </g>
+          <path d={`M1180,${140 + view.alt * 0.2} A50,50 0 1 0 1180,${240 + view.alt * 0.2} A34,50 0 1 1 1180,${140 + view.alt * 0.2} Z`} fill="#fff4c2" />
+        </Lamp>
 
         {CLOUDS.map(([x, y, s], i) => {
           const cx = ((((x - view.scroll * 0.12 * s) % 2000) + 2000) % 2000) - 200;
@@ -175,6 +185,23 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
             const x = ((((i * 200 - view.scroll) % 2000) + 2000) % 2000) - 200;
             return <circle key={i} cx={x} cy={726} r={6} fill="#ffd23a" stroke={OUT} strokeWidth={2} />;
           })}
+          <Lamp>
+            <g transform={`translate(0,${view.alt})`}>
+              {[...Array(10).keys()].map((i) => {
+                const x = ((((i * 200 - view.scroll) % 2000) + 2000) % 2000) - 200;
+                return (
+                  <g key={i}>
+                    {[726, 814].map((y) => (
+                      <g key={y}>
+                        <circle cx={x} cy={y} r={18} fill={LIGHT.white} opacity={0.3} />
+                        <circle cx={x} cy={y} r={6} fill={LIGHT.white} />
+                      </g>
+                    ))}
+                  </g>
+                );
+              })}
+            </g>
+          </Lamp>
           <ellipse cx={PLANE_X + 20} cy={790} rx={PLANE_W * 0.42 * Math.max(0.3, 1 - view.alt / 300)} ry={14} fill="rgba(30,40,60,0.2)" />
         </g>
 
@@ -192,6 +219,14 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
             <SidePlane type={type} color={plane.livery} width={PLANE_W} gear={view.gear} />
           </g>
         </g>
+        <Lamp>
+          <g transform={`translate(${PLANE_X + flyX},${GROUND - flyY}) scale(${flyScale}) rotate(${-view.pitch})`}>
+            <g transform={`translate(${-SIDE_MAIN_GEAR_X * SCALE},${-49 * SCALE}) scale(${SCALE})`}>
+              <SideLights longHaul={type.longHaul} />
+            </g>
+          </g>
+        </Lamp>
+        </Lights>
 
         {view.phase !== "fertig" && view.phase !== "wolken" && (
           <g transform="translate(560,150)">
@@ -244,8 +279,8 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
           </g>
         )}
 
-        {onGround && view.v > 0.3 && (
-          <g className={view.phase === "abheben" ? undefined : "dim-control"}>
+        {onGround && (
+          <g className={ready ? undefined : "dim-control"}>
             <path d={`M${STICK.x},${STICK.top - 60} l-56,64 h30 v${STICK.bottom - STICK.top - 8} h52 v${-(STICK.bottom - STICK.top - 8)} h30 z`} fill="#f39a35" opacity={0.8} stroke="#d1702a" strokeWidth={4} strokeLinejoin="round" />
             <text x={STICK.x} y={STICK.bottom + 50} textAnchor="middle" fontSize={22} fontWeight={700} fill={OUT}>Abheben</text>
             <g
@@ -259,14 +294,14 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
               onKeyDown={(e) => e.key === "ArrowUp" && setPull(1)}
               onKeyUp={(e) => e.key === "ArrowUp" && setPull(0)}
               style={{ cursor: "grab", touchAction: "none", transformOrigin: `${STICK.x}px ${stickY}px` }}
-              className={view.phase === "abheben" && view.pull === 0 ? "pulse-svg" : undefined}
+              className={ready && view.pull === 0 ? "pulse-svg" : undefined}
             >
               <circle cx={STICK.x} cy={stickY} r={60} fill="rgba(255,255,255,0.01)" />
               <circle cx={STICK.x} cy={stickY} r={44} fill="#fff" stroke={OUT} strokeWidth={5} />
               <circle cx={STICK.x} cy={stickY} r={34} fill="#3b4250" stroke={OUT} strokeWidth={3} />
               <path d={`M${STICK.x - 14},${stickY + 6} l14,-14 l14,14`} stroke="#fff" strokeWidth={6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </g>
-            {view.phase === "abheben" && view.pull === 0 && (
+            {ready && view.pull === 0 && (
               <g className="hand-hint" style={{ ["--hx" as string]: "0px", ["--hy" as string]: `${STICK.top - STICK.bottom}px` }} transform={`translate(${STICK.x + 8},${STICK.bottom + 6})`}>
                 <Hand />
               </g>
@@ -276,5 +311,28 @@ export function Takeoff({ state, plane, setHint, onDone }: SceneProps) {
 
       </svg>
     </div>
+  );
+}
+
+/** in the 120 by 50 frame of SidePlane: we see the right side of the plane */
+function SideLights({ longHaul }: { longHaul: boolean }) {
+  const nose = longHaul ? 116 : 110;
+  const shift = longHaul ? 4 : 0;
+  const spot = (x: number, y: number, r: number, color: string, className?: string) => (
+    <g className={className}>
+      <circle cx={x} cy={y} r={r * 3} fill={color} opacity={0.3} />
+      <circle cx={x} cy={y} r={r} fill={color} />
+      <circle cx={x} cy={y} r={r * 0.5} fill="#ffffff" />
+    </g>
+  );
+  return (
+    <g>
+      <polygon points={`${nose - 6},32 ${nose + 90},18 ${nose + 90},48`} fill={LIGHT.warm} opacity={0.3} />
+      {spot(nose - 6, 32, 1.6, "#fff6d0")}
+      {spot(41 + shift, 42, 1.2, LIGHT.green)}
+      {spot(40 + shift, 43, 1.5, LIGHT.white, "strobe")}
+      {spot(9, 29, 1.1, LIGHT.white)}
+      {spot(62, 19.2, 1.2, LIGHT.red, "beacon")}
+    </g>
   );
 }

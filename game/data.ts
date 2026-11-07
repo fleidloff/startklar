@@ -21,6 +21,8 @@ export interface AircraftType {
   speed: number;
   engines: 2 | 4;
   props?: boolean;
+  /** carries parcels only: no windows, no passengers */
+  freighter?: boolean;
   longHaul: boolean;
   fact: string;
   /** cartoon size in game metres */
@@ -100,11 +102,14 @@ export const AIRCRAFT: AircraftType[] = [
   { id: "B777", name: "Boeing 777", maker: "Boeing (USA)", length: 73.9, span: 64.8, seats: "300 bis 400", speed: 900, engines: 2, longHaul: true, fact: "Seine Triebwerke sind riesig: fast so dick wie der Rumpf eines kleinen Passagierflugzeugs.", gameLength: 46, gameSpan: 42, radius: 2.8, bags: 9 },
   { id: "B747", name: "Boeing 747 Jumbo-Jet", maker: "Boeing (USA)", length: 70.7, span: 64.4, seats: "um die 400", speed: 910, engines: 4, longHaul: true, fact: "Der Jumbo-Jet! Vorne hat er einen Buckel. Dort oben ist ein zweites Stockwerk.", gameLength: 47, gameSpan: 44, radius: 2.9, bags: 10 },
   { id: "A380", name: "Airbus A380", maker: "Airbus (Europa)", length: 72.7, span: 79.8, seats: "über 500", speed: 900, engines: 4, longHaul: true, fact: "Das größte Passagierflugzeug der Welt. Es hat zwei ganze Stockwerke für Passagiere!", gameLength: 48, gameSpan: 47, radius: 3.2, bags: 10 },
+  { id: "B737F", name: "Boeing 737 Frachter", maker: "Boeing (USA)", length: 39.5, span: 35.8, seats: "keine, nur Pakete", speed: 840, engines: 2, freighter: true, longHaul: false, fact: "Dieses Flugzeug hat keine Fenster. Es fliegt nachts Briefe und Pakete, damit sie am Morgen ankommen.", gameLength: 35, gameSpan: 32, radius: 2.0, bags: 7 },
 ];
 
 export const AIRLINES = ["LH", "JP", "ST", "KA", "FX", "SO"];
 
 export const LIVERIES = ["#3aa3e8", "#f6c02c", "#e8574a", "#4cbb6c", "#9a6ee8", "#f39a35"];
+
+export const POST_LIVERY = "#ffd400";
 
 export const GATE_COLORS = ["#a46ee0", "#ef6fae", "#2fb7a8"];
 

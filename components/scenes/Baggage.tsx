@@ -7,16 +7,19 @@ import { otherPlanes, servicePoints } from "./Apron";
 import { Hand } from "./Tower";
 import { Progress } from "./Pushback";
 import { aircraft } from "@/game/data";
+import { isPost } from "@/game/state";
 import { capture, P, clock, dist, lerp, svgPoint, type Pt } from "@/game/iso";
 import { sfx } from "@/game/sound";
 
 const KINDS = ["koffer", "tasche", "truhe", "rucksack"] as const;
+const PARCELS = ["paket-s", "paket-m", "paket-l"] as const;
+const NAMES: Record<Bag["kind"], string> = { koffer: "Koffer", tasche: "Reisetasche", truhe: "Truhe", rucksack: "Rucksack", "paket-s": "Kleines Paket", "paket-m": "Paket", "paket-l": "Großes Paket" };
 const COLORS = ["#e8574a", "#4cbb6c", "#3aa3e8", "#f39a35", "#9a6ee8", "#ef6fae", "#f6c02c", "#2fb7a8"];
 const RIDE = 1.4;
 
 interface Bag {
   id: number;
-  kind: (typeof KINDS)[number];
+  kind: (typeof KINDS)[number] | (typeof PARCELS)[number];
   color: string;
   home: Pt;
   state: "cart" | "drag" | "ride" | "back" | "in";
@@ -33,6 +36,8 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
   const bottom = local(loader.x, loader.y, loader.heading)(-3, 0, 1.0);
   const carts = [beltX + 3, beltX + 11.2].map((x) => ({ x, y: y + g.r + 18.5, heading: 0 }));
   const count = aircraft(plane.type).bags;
+  const post = isPost(plane);
+  const word = post ? "Pakete" : "Gepäck";
 
   const initial = useMemo<Bag[]>(() => {
     const firstCart = Math.ceil(count / 2);
@@ -42,9 +47,9 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
       const [a, row] = slots[i < firstCart ? i : i - firstCart];
       const base = P(c.x + a, c.y, 1.0);
       const home: Pt = [base[0], base[1] - row * 26];
-      return { id: i, kind: KINDS[(i + plane.gate) % KINDS.length], color: COLORS[(i * 3 + plane.gate) % COLORS.length], home, state: "cart", pos: home, t0: 0, from: home };
+      return { id: i, kind: post ? PARCELS[(i + plane.gate) % PARCELS.length] : KINDS[(i + plane.gate) % KINDS.length], color: COLORS[(i * 3 + plane.gate) % COLORS.length], home, state: "cart", pos: home, t0: 0, from: home };
     });
-  }, [count, plane.gate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [count, plane.gate, post]); // eslint-disable-line react-hooks/exhaustive-deps
   const [bags, setBags] = useState(initial);
   const [now, setNow] = useState(0);
   const loaded = bags.filter((b) => b.state === "in").length;
@@ -52,13 +57,13 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
   const doneRef = useRef(false);
 
   useEffect(() => {
-    setHint(loaded === count ? "Frachtraum voll beladen!" : `Gepäck einladen! (${loaded} von ${count})`);
+    setHint(loaded === count ? "Frachtraum voll beladen!" : `${word} einladen! (${loaded} von ${count})`);
     if (loaded === count && !doneRef.current) {
       doneRef.current = true;
       sfx.pneumatic();
       setTimeout(onDone, 700);
     }
-  }, [loaded, count, onDone, setHint]);
+  }, [loaded, count, word, onDone, setHint]);
 
   useEffect(() => {
     if (!animating) return;
@@ -171,7 +176,7 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        label={`Gepäck verladen: Zieh die Koffer auf das Förderband. ${loaded} von ${count} eingeladen.`}
+        label={`${word} verladen: Zieh ${post ? "die Pakete" : "die Koffer"} auf das Förderband. ${loaded} von ${count} eingeladen.`}
         overlay={
           <g>
             <polygon points={`${door[0] - 12},${door[1] - 14} ${door[0] + 12},${door[1] - 8} ${door[0] + 12},${door[1] + 12} ${door[0] - 12},${door[1] + 6}`} fill="#3b4250" stroke={OUT} strokeWidth={2} />
@@ -190,7 +195,7 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
                     key={b.id}
                     role="button"
                     tabIndex={b.state === "cart" ? 0 : -1}
-                    aria-label={`${b.kind === "koffer" ? "Koffer" : b.kind === "tasche" ? "Reisetasche" : b.kind === "truhe" ? "Truhe" : "Rucksack"} aufs Band legen`}
+                    aria-label={`${NAMES[b.kind]} aufs Band legen`}
                     transform={`translate(${p[0]},${p[1]}) scale(${scale})`}
                     style={{ cursor: b.state === "cart" ? "grab" : "default" }}
                     onPointerDown={(e) => {
@@ -213,13 +218,25 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
           </g>
         }
       />
-      <Progress value={loaded / count} label="Gepäck" />
+      <Progress value={loaded / count} label={word} />
     </div>
   );
 }
 
 function BagSprite({ kind, color }: { kind: Bag["kind"]; color: string }) {
   const s = { stroke: OUT, strokeWidth: 1.6, strokeLinejoin: "round" as const };
+  if (kind.startsWith("paket")) {
+    const h = kind === "paket-s" ? 12 : kind === "paket-m" ? 16 : 20;
+    const w = h * 1.15;
+    return (
+      <g {...s}>
+        <rect x={-w / 2} y={-h} width={w} height={h} rx={1.5} fill={kind === "paket-m" ? "#b97a40" : "#c98a4b"} />
+        <path d={`M${-w / 2},${-h * 0.72} h${w}`} stroke="#8a5a2e" strokeWidth={1} />
+        <rect x={-2} y={-h} width={4} height={h} fill="#e8c07a" strokeWidth={0.8} />
+        <rect x={w / 2 - 8} y={-h * 0.5} width={6} height={4.5} fill="#fff" strokeWidth={0.8} />
+      </g>
+    );
+  }
   switch (kind) {
     case "koffer":
       return (

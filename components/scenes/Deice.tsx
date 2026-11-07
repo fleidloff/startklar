@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { DeiceTruck, Plane, SnowCap, local, planeGeometry, wingPolygon, type Drawable } from "../art";
+import { Bright, DeiceTruck, Plane, SnowCap, local, planeGeometry, wingPolygon, type Drawable } from "../art";
 import { IsoWorld, parkedPose } from "../World";
 import { otherPlanes, turnaroundProps } from "./Apron";
 import { Hand } from "./Tower";
@@ -99,12 +99,14 @@ export function Deice({ state, plane, setHint, onDone }: SceneProps) {
       node: (
         <g>
           <Plane {...pose} type={plane.type} livery={plane.livery} />
-          <g mask="url(#sprayMask)" className={done ? "melt" : undefined}>
-            <SnowCap poly={wing} />
-            <line x1={nose[0]} y1={nose[1]} x2={tail[0]} y2={tail[1]} stroke="#7fb6dc" strokeWidth={g.r * K * 0.9 + 6} strokeLinecap="round" />
-            <line x1={nose[0]} y1={nose[1]} x2={tail[0]} y2={tail[1]} stroke="#fff" strokeWidth={g.r * K * 0.9} strokeLinecap="round" />
-            <line x1={nose[0]} y1={nose[1] + g.r * K * 0.35} x2={tail[0]} y2={tail[1] + g.r * K * 0.35} stroke="#b9d9ef" strokeWidth={2} strokeDasharray="4 6" />
-          </g>
+          <Bright>
+            <g mask="url(#sprayMask)" className={done ? "melt" : undefined}>
+              <SnowCap poly={wing} />
+              <line x1={nose[0]} y1={nose[1]} x2={tail[0]} y2={tail[1]} stroke="#7fb6dc" strokeWidth={g.r * K * 0.9 + 6} strokeLinecap="round" />
+              <line x1={nose[0]} y1={nose[1]} x2={tail[0]} y2={tail[1]} stroke="#fff" strokeWidth={g.r * K * 0.9} strokeLinecap="round" />
+              <line x1={nose[0]} y1={nose[1] + g.r * K * 0.35} x2={tail[0]} y2={tail[1] + g.r * K * 0.35} stroke="#b9d9ef" strokeWidth={2} strokeDasharray="4 6" />
+            </g>
+          </Bright>
         </g>
       ),
     },

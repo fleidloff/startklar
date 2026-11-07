@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | Entwurf, noch nicht umgesetzt |
+| Status | Umgesetzt |
 | Stand | 7. November 2026 |
 | Anlass | Wunsch: Im Tower schaltet das Kind die Beleuchtung des Flughafens an. Dann wird es Nacht, und ein gelbes Postflugzeug landet. |
-| Betroffene Dateien | `game/data.ts`, `game/state.ts`, `game/state.test.ts`, `components/Game.tsx`, `components/World.tsx`, `components/art.tsx`, `components/icons.tsx`, `components/scenes/Tower.tsx`, `components/scenes/Baggage.tsx`, `components/scenes/WorldMap.tsx`, `app/globals.css` |
+| Betroffene Dateien | `game/data.ts`, `game/state.ts`, `game/state.test.ts`, `components/Game.tsx`, `components/World.tsx`, `components/art.tsx`, `components/icons.tsx`, `components/scenes/Tower.tsx`, `components/scenes/Baggage.tsx`, `components/scenes/BusGame.tsx`, `components/scenes/Pushback.tsx`, `components/scenes/Deice.tsx`, `components/scenes/Marshaller.tsx`, `components/scenes/Takeoff.tsx`, `app/globals.css` |
 
 ## 1. Problem
 

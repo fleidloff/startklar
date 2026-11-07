@@ -188,6 +188,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M19,27 h16" strokeWidth={5} />
     </g>
   ),
+  lamp: (
+    <g {...s}>
+      <path d="M32,8 C20,8 13,17 13,26 C13,34 19,38 22,44 H42 C45,38 51,34 51,26 C51,17 44,8 32,8 Z" fill="#ffe27a" />
+      <rect x={22} y={44} width={20} height={6} rx={2} fill="#c3ccd6" />
+      <rect x={24} y={50} width={16} height={6} rx={3} fill="#9aa3ad" />
+      <path d="M27,36 L32,24 L37,36" fill="none" />
+    </g>
+  ),
   close: (
     <g {...s} strokeWidth={6}>
       <line x1={18} y1={18} x2={46} y2={46} />

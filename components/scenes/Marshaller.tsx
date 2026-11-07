@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { SceneProps } from "../Game";
-import { OUT } from "../art";
+import { LIGHT, Lamp, Lights, Night, OUT } from "../art";
 import { aircraft } from "@/game/data";
 import { capture, clamp, svgPoint } from "@/game/iso";
 import { sfx, startLoop, stopLoop } from "@/game/sound";
@@ -18,6 +18,7 @@ export function Marshaller({ plane, setHint, onDone, state }: SceneProps) {
   const wandsRef = useRef(wands);
   const [view, setView] = useState({ d: START, off: 0, done: false });
   const grabs = useRef(new Map<number, "left" | "right">());
+  const night = useContext(Night);
 
   const moveWand = (side: "left" | "right", value: number) => {
     const v = clamp(value, 0, 1);
@@ -114,7 +115,7 @@ export function Marshaller({ plane, setHint, onDone, state }: SceneProps) {
     const wy = ey - Math.cos(ang * 0.6) * 90;
     return (
       <g key={side}>
-        <line x1={ex} y1={ey} x2={wx} y2={wy} stroke="#ffb347" strokeWidth={34} strokeLinecap="round" opacity={0.35} className="glow" />
+        <line x1={ex} y1={ey} x2={wx} y2={wy} stroke="#ffb347" strokeWidth={night ? 64 : 34} strokeLinecap="round" opacity={night ? 0.8 : 0.35} className="glow" />
         <line x1={ex} y1={ey} x2={wx} y2={wy} stroke={OUT} strokeWidth={20} strokeLinecap="round" />
         <line x1={ex} y1={ey} x2={wx} y2={wy} stroke="#ff6a1f" strokeWidth={14} strokeLinecap="round" />
         <line x1={ex + (wx - ex) * 0.3} y1={ey + (wy - ey) * 0.3} x2={wx} y2={wy} stroke="#ffd0a0" strokeWidth={5} strokeLinecap="round" />
@@ -160,6 +161,7 @@ export function Marshaller({ plane, setHint, onDone, state }: SceneProps) {
             <stop offset="1" stopColor="#d8f0fb" />
           </linearGradient>
         </defs>
+        <Lights>
         <rect width={1600} height={260} fill="url(#msky)" />
         <rect y={200} width={1600} height={70} fill={state.season === "winter" ? "#eef5fb" : "#8ccf55"} stroke={OUT} strokeWidth={3} />
         <path d="M0,265 L1600,265 L1600,1000 L0,1000 Z" fill={state.season === "winter" ? "#d6d9de" : "#c9c1b5"} />
@@ -191,9 +193,16 @@ export function Marshaller({ plane, setHint, onDone, state }: SceneProps) {
         <g transform={`translate(${px},${groundY}) scale(${scale})`}>
           <HeadOnPlane livery={plane.livery} engines={t.engines} props={!!t.props} />
         </g>
+        <Lamp>
+          <g transform={`translate(${px},${groundY}) scale(${scale})`}>
+            <HeadOnLights props={!!t.props} />
+          </g>
+        </Lamp>
+        </Lights>
         <g>
           <path d="M650,1000 C650,880 690,800 800,790 C910,800 950,880 950,1000 Z" fill="#d4f53a" stroke={OUT} strokeWidth={5} />
-          <path d="M660,930 L940,930 M672,880 L928,880" stroke="#f2f4f6" strokeWidth={14} />
+          {night && <path d="M660,930 L940,930 M672,880 L928,880" stroke="#ffffff" strokeWidth={34} opacity={0.35} />}
+          <path d="M660,930 L940,930 M672,880 L928,880" stroke={night ? "#ffffff" : "#f2f4f6"} strokeWidth={14} />
           <line x1={800} y1={800} x2={800} y2={1000} stroke="#b8d030" strokeWidth={6} />
           {arm("left")}
           {arm("right")}
@@ -212,6 +221,30 @@ export function Marshaller({ plane, setHint, onDone, state }: SceneProps) {
         {slider("right")}
       </svg>
     </div>
+  );
+}
+
+/** seen from the front: the plane's right wing is on the left of the screen */
+function HeadOnLights({ props }: { props: boolean }) {
+  const tipY = props ? -220 : -180;
+  const spot = (x: number, y: number, r: number, color: string, className?: string) => (
+    <g key={`${x},${y}`} className={className}>
+      <circle cx={x} cy={y} r={r * 3} fill={color} opacity={0.3} />
+      <circle cx={x} cy={y} r={r} fill={color} />
+      <circle cx={x} cy={y} r={r * 0.5} fill="#ffffff" />
+    </g>
+  );
+  return (
+    <g>
+      <ellipse cx={0} cy={20} rx={260} ry={40} fill={LIGHT.warm} opacity={0.25} />
+      {spot(-26, -70, 16, "#fff6d0")}
+      {spot(26, -70, 16, "#fff6d0")}
+      {spot(-500, tipY, 12, LIGHT.green)}
+      {spot(500, tipY, 12, LIGHT.red)}
+      {spot(-506, tipY, 14, LIGHT.white, "strobe")}
+      {spot(506, tipY, 14, LIGHT.white, "strobe")}
+      {spot(0, -312, 12, LIGHT.red, "beacon")}
+    </g>
   );
 }
 

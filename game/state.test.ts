@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createPlane, initialState, openTasks, parseSave, reducer, type GameState } from "./state.ts";
+import { arrivals, clockMinutes, createPlane, initialState, mayArrive, openTasks, parseSave, pauseOver, reducer, roundOver, type GameState } from "./state.ts";
 import { PUSHBACK_END, TAXIWAY_X, pushbackPose } from "./motion.ts";
 import { AIRCRAFT, flightTime } from "./data.ts";
 
@@ -84,4 +84,61 @@ test("flight time is written in whole words", () => {
   assert.equal(flightTime(kmFor(61)), "1 Stunde 1 Minute");
   assert.equal(flightTime(kmFor(120)), "2 Stunden");
   assert.equal(flightTime(kmFor(135)), "2 Stunden 15 Minuten");
+});
+
+const MIN = 60_000;
+const at = (minutes: number, planes: number): GameState => {
+  const s = initialState(0);
+  return { ...s, planes: arrivals({ ...s, planes: [] }, seeded(3)).slice(0, planes), round: { played: minutes * MIN, lastPlay: 0, departed: 0 } };
+};
+
+test("planes arrive for 15 minutes, then one at a time while the airport is empty before 20 minutes", () => {
+  assert.equal(mayArrive(at(14, 2)), true);
+  assert.equal(mayArrive(at(16, 1)), false);
+  assert.equal(mayArrive(at(16, 0)), true);
+  assert.equal(mayArrive(at(21, 0)), false);
+  assert.equal(roundOver(at(21, 0)), true);
+  assert.equal(roundOver(at(21, 1)), false);
+});
+
+test("play time counts only while playing, and a break of 20 minutes starts a new round", () => {
+  let s = at(10, 1);
+  s = reducer(s, { type: "tick", now: 1000 });
+  assert.equal(s.round.played, 10 * MIN + 1000);
+  s = reducer(s, { type: "tick", now: 1000 + 5 * MIN });
+  assert.equal(s.round.played, 10 * MIN + 16_000, "a 5 minute break adds no play time");
+  assert.equal(pauseOver(s.round, s.round.lastPlay + 19 * MIN), false);
+  assert.equal(pauseOver(s.round, s.round.lastPlay + 20 * MIN), true);
+  const fresh = reducer(s, { type: "round", now: 99, planes: arrivals(s, seeded(5)) });
+  assert.deepEqual(fresh.round, { played: 0, lastPlay: 99, departed: 0 });
+  assert.equal(fresh.planes.length, 3, "the old plane stays and two new ones fill the free gates");
+});
+
+test("the pause holds the clock and survives a reset, a backwards clock restarts it", () => {
+  let s = at(21, 0);
+  const pause = reducer(s, { type: "tick", now: 10 * MIN });
+  assert.equal(pause, s, "nothing counts during the pause");
+  s = reducer(s, { type: "reset" });
+  assert.equal(roundOver(s), true);
+  s = { ...s, round: { ...s.round, lastPlay: 30 * MIN } };
+  s = reducer(s, { type: "tick", now: 25 * MIN });
+  assert.equal(s.round.lastPlay, 25 * MIN);
+  assert.equal(pauseOver(s.round, 44 * MIN), false);
+});
+
+test("a departure counts for the round and the save keeps the round", () => {
+  let s = initialState(0);
+  s = reducer(s, { type: "departed", id: "p1", at: 1 });
+  assert.equal(s.round.departed, 1);
+  assert.deepEqual(parseSave(JSON.stringify(s))!.round, s.round);
+  const old = JSON.parse(JSON.stringify(s));
+  delete old.round;
+  assert.equal(parseSave(JSON.stringify(old))!.round.played, 0, "old saves start a fresh round");
+  assert.equal(parseSave(JSON.stringify({ ...s, round: { played: "x" } }))!.round.played, 0);
+});
+
+test("the tower clock starts at 11:40 and passes noon after 20 minutes", () => {
+  assert.equal(clockMinutes(0), 11 * 60 + 40);
+  assert.equal(clockMinutes(20 * MIN), 12 * 60);
+  assert.equal(clockMinutes(24 * MIN + 59_000), 12 * 60 + 4);
 });

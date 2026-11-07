@@ -18,14 +18,19 @@ import { GATE_COLORS, PRAISE, TOOLS, aircraft, destination, tool, type TaskId, t
 import { H, W } from "@/game/iso";
 import { setSound, sfx } from "@/game/sound";
 import {
+  PAUSE_MS,
+  arrivals,
   createPlane,
   initialState,
   loadGame,
+  mayArrive,
   openJobs,
   openTasks,
+  pauseOver,
   readyForPushback,
   reducer,
   requiredTasks,
+  roundOver,
   saveGame,
   todoText,
   type GameState,
@@ -66,6 +71,10 @@ function nextSteps(p: Plane | undefined, season: GameState["season"]): Screen[] 
 const screenLabel = (s: Screen) =>
   s === "tower" ? "Zum Tower" : s === "vorfeld" ? "Zum Vorfeld" : s === "weltkarte" ? "Zur Weltkarte" : tool(s as ToolId).label;
 const nextLabel = (s: Screen) => (s === "pushback" ? "Startklar! Zurückschieben" : s === "einwinker" ? "Jetzt einwinken!" : s === "start" ? "Ab zur Startbahn!" : screenLabel(s));
+const TICK_MS = 5000;
+const minutes = (n: number) => `${n} ${n === 1 ? "Minute" : "Minuten"}`;
+const planesWord = (n: number) => `${n} ${n === 1 ? "Flugzeug" : "Flugzeuge"}`;
+
 const screenIcon = (s: Screen) => (s === "tower" ? "radar" : s === "vorfeld" ? "airport" : s === "weltkarte" ? "globe" : s);
 
 export default function Game() {
@@ -75,7 +84,8 @@ export default function Game() {
   const [hint, setHint] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"checkliste" | "help" | "reset" | null>(null);
+  const [panel, setPanel] = useState<"checkliste" | "help" | "reset" | "eltern" | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [scale, setScale] = useState(1);
   const [portrait, setPortrait] = useState(false);
   const [fullscreen, setFullscreen] = useState(() => !!fullscreenElement());
@@ -143,9 +153,48 @@ export default function Game() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  const startRound = useCallback(
+    (t: number) => {
+      const planes = arrivals(stateRef.current, Math.random);
+      dispatch({ type: "round", now: t, planes });
+      setPanel(null);
+      showToast(planes.length ? `Der Flughafen ist wieder offen! ${planesWord(planes.length)} ${planes.length === 1 ? "ist" : "sind"} im Anflug.` : "Der Flughafen ist wieder offen!");
+    },
+    [showToast],
+  );
+
+  const playing = screen !== "title";
   useEffect(() => {
-    if (screen === "title" || state.planes.length >= 3) return;
+    if (!playing) return;
+    const step = () => {
+      if (document.visibilityState !== "visible") return;
+      const t = Date.now();
+      setNow(t);
+      const s = stateRef.current;
+      if (pauseOver(s.round, t)) return startRound(t);
+      const next = reducer(s, { type: "tick", now: t });
+      if (next === s) return;
+      stateRef.current = next;
+      dispatch({ type: "tick", now: t });
+      if (!roundOver(s) && roundOver(next)) {
+        // the last take-off before 20 minutes already shows "Guten Flug!": keep its text
+        setCelebration((c) => roundEnd(next, c?.text));
+      }
+    };
+    step();
+    const id = setInterval(step, TICK_MS);
+    document.addEventListener("visibilitychange", step);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", step);
+    };
+  }, [playing, startRound]);
+
+  const arrive = mayArrive(state);
+  useEffect(() => {
+    if (!playing || !arrive) return;
     const t = setTimeout(() => {
+      if (!mayArrive(stateRef.current)) return;
       const plane = createPlane(stateRef.current, Math.random);
       if (!plane) return;
       dispatch({ type: "spawn", plane });
@@ -153,7 +202,10 @@ export default function Game() {
       showToast(`Neues Flugzeug im Anflug: Flug ${plane.flightNo} aus ${d.city}! Ab in den Tower!`);
     }, 7000);
     return () => clearTimeout(t);
-  }, [screen, state.planes.length, showToast]);
+  }, [playing, arrive, state.planes.length, showToast]);
+
+  const paused = roundOver(state);
+  const pauseLeft = Math.max(1, Math.ceil((PAUSE_MS - (now - state.round.lastPlay)) / 60_000));
 
   const selected = state.planes.find((p) => p.id === state.selected);
   const active = state.planes.find((p) => p.id === scenePlane) ?? selected;
@@ -176,7 +228,7 @@ export default function Game() {
       planes.find((p) => p.id === preferred && ok(p)) ?? planes.find((p) => p.id === state.selected && ok(p)) ?? planes.find(ok);
     if (id === "checkliste") {
       sfx.click();
-      if (!selected) return showToast("Gerade ist kein Flugzeug da. Gleich kommt eins!");
+      if (!selected) return showToast(paused ? "Mittagspause! Gerade ist kein Flugzeug da." : "Gerade ist kein Flugzeug da. Gleich kommt eins!");
       return setPanel("checkliste");
     }
     if (id === "enteisung" && state.season === "sommer") {
@@ -233,12 +285,15 @@ export default function Game() {
     if (!active || active.stage !== "abflug") return;
     const d = destination(active.dest);
     const sticker = state.collected.includes(active.type) ? "" : ` Neuer Sticker: ${aircraft(active.type).name}!`;
-    dispatch({ type: "departed", id: active.id, at: Date.now() });
+    const action = { type: "departed", id: active.id, at: Date.now() } as const;
+    const after = reducer(state, action);
+    dispatch(action);
     sfx.success();
     setHint(null);
     setScenePlane(null);
     setScreen("vorfeld");
-    setCelebration({ title: "Guten Flug!", text: `Flug ${active.flightNo} ist unterwegs nach ${d.city} (${d.iata}).${sticker}`, next: ["weltkarte"] });
+    const text = `Flug ${active.flightNo} ist unterwegs nach ${d.city} (${d.iata}).${sticker}`;
+    setCelebration(roundOver(after) ? roundEnd(after, text) : { title: "Guten Flug!", text, next: ["weltkarte"] });
   };
 
   const onLanded = (id: string) => {
@@ -277,7 +332,7 @@ export default function Game() {
       case "vorfeld":
         return <Apron state={state} onSelect={(id) => { sfx.click(); dispatch({ type: "select", id }); }} onOpen={(s, id) => (s === "tower" || s === "weltkarte" ? go(s, id) : openTool(s as ToolId, id))} />;
       case "tower":
-        return <Tower state={state} setHint={setHint} onLanded={onLandedStable} />;
+        return <Tower state={state} setHint={setHint} onLanded={onLandedStable} now={now} paused={paused} onParent={() => setPanel("eltern")} />;
       case "weltkarte":
         return <WorldMap state={state} />;
     }
@@ -368,7 +423,7 @@ export default function Game() {
                       <b className="banner-title">Flughafen</b>
                     )
                   }
-                  right={<span>{hint ?? todoText(headPlane, state.season)}</span>}
+                  right={<span>{hint ?? (paused ? `Mittagspause! Die Flugzeuge kommen in ${minutes(pauseLeft)} wieder.` : todoText(headPlane, state.season))}</span>}
                 />
               )}
             </div>
@@ -454,6 +509,7 @@ export default function Game() {
 
         {panel === "checkliste" && selected && <Checklist plane={selected} state={state} onClose={() => setPanel(null)} onGo={(s) => (s === "tower" ? go("tower", selected.id) : openTool(s as ToolId, selected.id))} />}
         {panel === "help" && <Help onClose={() => setPanel(null)} />}
+        {panel === "eltern" && paused && <ParentGate onClose={() => setPanel(null)} onSolved={() => startRound(Date.now())} />}
         {panel === "reset" && (
           <Modal label="Neues Spiel" onClose={() => setPanel(null)}>
             <h2>Neues Spiel starten?</h2>
@@ -479,6 +535,62 @@ export default function Game() {
         </div>
       )}
     </div>
+  );
+}
+
+function roundEnd(state: GameState, before?: string): Celebration {
+  const done = `Heute Vormittag hast du ${planesWord(state.round.departed)} abgefertigt.`;
+  return { title: "Mittagspause am Flughafen!", text: before ? `${before} ${done}` : done, next: ["weltkarte"] };
+}
+
+function ParentGate({ onClose, onSolved }: { onClose: () => void; onSolved: () => void }) {
+  const [[a, b]] = useState(() => [12 + Math.floor(Math.random() * 8), 3 + Math.floor(Math.random() * 7)]);
+  const [input, setInput] = useState("");
+  const type = useCallback((key: string) => {
+    sfx.click();
+    setInput((v) => (key === "del" ? v.slice(0, -1) : v.length < 3 ? v + key : v));
+  }, []);
+  const submit = () => {
+    if (Number(input) === a * b) return onSolved();
+    sfx.oops();
+    onClose();
+  };
+  const submitRef = useRef(submit);
+  useEffect(() => {
+    submitRef.current = submit;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) type(e.key);
+      else if (e.key === "Backspace") type("del");
+      else if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) submitRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [type]);
+  return (
+    <Modal label="Für Eltern" onClose={onClose}>
+      <h2>Für Eltern</h2>
+      <p className="modal-text">
+        Wie viel ist {a} mal {b}?
+      </p>
+      <output className="gate-input" aria-label="Deine Antwort">{input || "?"}</output>
+      <div className="numpad">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0"].map((k) => (
+          <button key={k} type="button" onClick={() => type(k)} aria-label={k === "del" ? "Löschen" : undefined}>
+            {k === "del" ? "⌫" : k}
+          </button>
+        ))}
+        <button type="button" className="numpad-ok" onClick={submit} disabled={!input}>
+          Fertig
+        </button>
+      </div>
+      <div className="modal-actions">
+        <BigButton color="#9aa3ad" onClick={onClose}>
+          Abbrechen
+        </BigButton>
+      </div>
+    </Modal>
   );
 }
 

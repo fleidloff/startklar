@@ -331,6 +331,80 @@ text {
   border-radius: 16px;
 }
 
+/* ---------- tower clock & pause ---------- */
+
+.tower-clock {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: #fffdf5;
+  border: 6px solid #fff;
+  box-shadow: 0 0 0 3.5px var(--ink), var(--shadow);
+  pointer-events: none;
+}
+
+.pause-sun {
+  position: absolute;
+  left: 720px;
+  top: 505px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.gate-input {
+  display: block;
+  width: 220px;
+  margin: 0 auto 18px;
+  padding: 8px;
+  font-size: 48px;
+  font-weight: 700;
+  background: #fff;
+  border: 4px solid var(--ink);
+  border-radius: 18px;
+}
+
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 110px);
+  justify-content: center;
+  gap: 12px;
+}
+
+.numpad button {
+  height: 80px;
+  font: inherit;
+  font-size: 36px;
+  font-weight: 700;
+  background: #fff;
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.numpad .numpad-ok {
+  font-size: 26px;
+  color: #fff;
+  background: #4cbb6c;
+}
+
+.numpad button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ---------- overlays ---------- */
 
 .toast {

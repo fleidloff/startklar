@@ -67,7 +67,7 @@ Eine Spielrunde hat ein natürliches Ende. Der Flughafen macht nach etwa 20 Minu
 
 ### Anforderung 4: Die Uhr im Tower
 
-- Im Tower hängt eine große runde Uhr mit Stundenzeiger und Minutenzeiger.
+- Im Tower ist unten rechts eine kleine runde Uhr mit Stundenzeiger und Minutenzeiger. Sie sieht aus wie die runden Knöpfe der Bedienung, ist aber kein Knopf.
 - Die Uhr zeigt die Spielzeit der Runde. Jede Runde beginnt um 11:40. Nach 20 Minuten Spielzeit ist es 12 Uhr.
 - Ist das Spiel zu oder unsichtbar, steht die Uhr. Nach einer kurzen Unterbrechung läuft sie dort weiter, wo sie stand.
 - Die Zeit von jetzt bis 12 Uhr ist auf dem Zifferblatt ein farbiges Kuchenstück. Es wird kleiner, wie bei einer Küchenuhr. Um 12 Uhr ist es weg.

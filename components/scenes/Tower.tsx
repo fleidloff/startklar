@@ -4,12 +4,15 @@ import { IsoWorld, parkedPose, planeDrawable, waitingPose } from "../World";
 import { destination } from "@/game/data";
 import { capture, P, clock, dist, makePath, svgPoint, type Pt } from "@/game/iso";
 import { sfx, startLoop, stopLoop } from "@/game/sound";
-import type { GameState } from "@/game/state";
+import { PAUSE_MS, ROUND_MS, clockMinutes, type GameState } from "@/game/state";
 
 interface Props {
   state: GameState;
   setHint: (t: string | null) => void;
   onLanded: (id: string) => void;
+  now: number;
+  paused: boolean;
+  onParent: () => void;
 }
 
 const RADAR = { x: 400, y: 470, w: 800, h: 500 };
@@ -26,7 +29,7 @@ interface Flight {
   start: number;
 }
 
-export function Tower({ state, setHint, onLanded }: Props) {
+export function Tower({ state, setHint, onLanded, now: wall, paused, onParent }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [now, setNow] = useState(() => performance.now());
   const [drawing, setDrawing] = useState<{ id: string; points: Pt[] } | null>(null);
@@ -56,8 +59,8 @@ export function Tower({ state, setHint, onLanded }: Props) {
 
   useEffect(() => {
     if (Object.keys(flights).length) return;
-    setHint(inbound.length ? "Zieh eine Linie vom Flugzeug zum grünen Pfeil!" : "Gerade ist kein Flugzeug im Anflug. Bald kommt eins!");
-  }, [inbound.length, flights, setHint]);
+    setHint(inbound.length ? "Zieh eine Linie vom Flugzeug zum grünen Pfeil!" : paused ? null : "Gerade ist kein Flugzeug im Anflug. Bald kommt eins!");
+  }, [inbound.length, flights, paused, setHint]);
 
   const holdPos = (id: string, radarAngle: number, index: number) => {
     const c = HOLDS[index % HOLDS.length];
@@ -210,9 +213,13 @@ export function Tower({ state, setHint, onLanded }: Props) {
           )}
         </g>
         {inbound.length === 0 && Object.keys(flights).length === 0 && (
-          <text x={800} y={740} textAnchor="middle" fill="#bff5c9" fontSize={30} fontWeight={700}>Der Himmel ist frei. Bald kommt ein Flugzeug!</text>
+          <text x={800} y={paused ? 772 : 740} textAnchor="middle" fill="#bff5c9" fontSize={30} fontWeight={700}>
+            {paused ? "Mittagspause! Der Himmel ist frei." : "Der Himmel ist frei. Bald kommt ein Flugzeug!"}
+          </text>
         )}
       </svg>
+      <TowerClock played={state.round.played} paused={paused} />
+      {paused && <PauseSun progress={(wall - state.round.lastPlay) / PAUSE_MS} onHold={onParent} />}
     </div>
   );
 }
@@ -228,5 +235,85 @@ export function Hand() {
         strokeLinejoin="round"
       />
     </g>
+  );
+}
+
+const dial = (deg: number, r: number): [number, number] => [Math.sin((deg * Math.PI) / 180) * r, -Math.cos((deg * Math.PI) / 180) * r];
+
+function TowerClock({ played, paused }: { played: number; paused: boolean }) {
+  const total = clockMinutes(played);
+  const [h, m] = [Math.floor(total / 60), total % 60];
+  const left = Math.max(0, Math.ceil((ROUND_MS - played) / 60_000));
+  const minuteAngle = m * 6;
+  const hourAngle = ((h % 12) + m / 60) * 30;
+  const time = `${h}:${String(m).padStart(2, "0")}`;
+  const label = `Flughafenuhr, ${time} Uhr${paused ? ", Mittagspause" : left > 0 ? `, noch ${left} ${left === 1 ? "Minute" : "Minuten"} bis Mittag` : ""}`;
+  return (
+    <div className="tower-clock" role="img" aria-label={label}>
+      <svg viewBox="-100 -100 200 200" width={118} height={118} aria-hidden="true">
+        {h < 12 && <path d={`M0,0 L${dial(minuteAngle, 92)} A92,92 0 0 1 0,-92 Z`} fill="#ffb347" opacity={0.75} />}
+        {[...Array(12).keys()].map((i) => (
+          <path key={i} d={`M${dial(i * 30, i % 3 ? 82 : 74)} L${dial(i * 30, 92)}`} stroke="#26303f" strokeWidth={i % 3 ? 4 : 8} strokeLinecap="round" />
+        ))}
+        <path d={`M0,0 L${dial(hourAngle, 46)}`} stroke="#26303f" strokeWidth={14} strokeLinecap="round" />
+        <path d={`M0,0 L${dial(minuteAngle, 72)}`} stroke="#26303f" strokeWidth={8} strokeLinecap="round" />
+        <circle r={10} fill="#e8574a" stroke="#26303f" strokeWidth={3} />
+      </svg>
+    </div>
+  );
+}
+
+const HOLD_MS = 3000;
+
+function PauseSun({ progress, onHold }: { progress: number; onHold: () => void }) {
+  const [calm] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const timer = useRef<number | undefined>(undefined);
+  const start = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(onHold, HOLD_MS);
+  };
+  const stop = () => window.clearTimeout(timer.current);
+  useEffect(() => stop, []);
+  const minutes = PAUSE_MS / 60_000;
+  const done = Math.min(1, Math.max(0, calm ? Math.floor(progress * minutes) / minutes : progress));
+  const ring = 2 * Math.PI * 66;
+  return (
+    <button
+      type="button"
+      className="pause-sun"
+      aria-label="Pause, für Eltern: gedrückt halten zum Überspringen"
+      onPointerDown={start}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+        if (!e.repeat) start();
+      }}
+      onKeyUp={stop}
+      onBlur={stop}
+    >
+      <svg viewBox="-80 -80 160 160" width={160} height={160} aria-hidden="true">
+        <circle r={66} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={10} />
+        <circle r={66} fill="none" stroke="#ffd23a" strokeWidth={10} strokeLinecap="round" strokeDasharray={ring} strokeDashoffset={ring * (1 - done)} transform="rotate(-90)" />
+        <g stroke="#ffd23a" strokeWidth={5} strokeLinecap="round">
+          {[...Array(8).keys()].map((i) => (
+            <line key={i} x1={0} y1={-46} x2={0} y2={-54} transform={`rotate(${i * 45})`} />
+          ))}
+        </g>
+        <circle r={38} fill="#ffd23a" stroke="#26303f" strokeWidth={3} />
+        <g fill="none" stroke="#26303f" strokeWidth={3} strokeLinecap="round">
+          <path d="M-20,-4 q7,7 14,0 M6,-4 q7,7 14,0" />
+          <path d="M-7,14 q7,4 14,0" />
+        </g>
+        <g fill="#fff" stroke="#26303f" strokeWidth={1.5} fontWeight={700}>
+          <text x={36} y={-40} fontSize={16}>z</text>
+          <text x={48} y={-52} fontSize={20}>z</text>
+          <text x={60} y={-64} fontSize={24}>Z</text>
+        </g>
+      </svg>
+    </button>
   );
 }

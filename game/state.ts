@@ -33,6 +33,14 @@ export interface GameState {
   collected: string[];
   selected: string | null;
   seq: number;
+  round: Round;
+}
+
+/** played: play time of this round; lastPlay: wall clock of the last counted moment; both in milliseconds */
+export interface Round {
+  played: number;
+  lastPlay: number;
+  departed: number;
 }
 
 export type Action =
@@ -45,10 +53,19 @@ export type Action =
   | { type: "select"; id: string }
   | { type: "season"; season: Season }
   | { type: "sound"; on: boolean }
+  | { type: "tick"; now: number }
+  | { type: "round"; now: number; planes: Plane[] }
   | { type: "reset" };
 
 export const GATES = 3;
 const SAVE_KEY = "flughafen-startklar";
+
+const MINUTE = 60_000;
+export const ARRIVALS_MS = 15 * MINUTE;
+export const ROUND_MS = 20 * MINUTE;
+export const PAUSE_MS = 20 * MINUTE;
+/** a longer gap between two ticks is an interruption, not play time */
+const MAX_TICK_MS = 15_000;
 
 /** each job lists the tools that can do it: passengers board by bus or by finger */
 export function requiredTasks(season: Season): TaskId[][] {
@@ -84,7 +101,7 @@ export function todoText(plane: Plane | undefined, season: Season): string {
   }
 }
 
-export function initialState(): GameState {
+export function initialState(now = Date.now()): GameState {
   return {
     v: 1,
     season: "sommer",
@@ -97,7 +114,37 @@ export function initialState(): GameState {
     collected: [],
     selected: "p1",
     seq: 3,
+    round: { played: 0, lastPlay: now, departed: 0 },
   };
+}
+
+export const roundOver = (state: GameState) => state.planes.length === 0 && state.round.played >= ROUND_MS;
+
+export function mayArrive(state: GameState) {
+  if (state.round.played < ARRIVALS_MS) return freeGates(state).length > 0;
+  return state.planes.length === 0 && state.round.played < ROUND_MS;
+}
+
+export const pauseOver = (round: Round, now: number) => round.played > 0 && now - round.lastPlay >= PAUSE_MS;
+
+/** minutes after midnight on the tower clock: every round starts at 11:40 */
+export const clockMinutes = (played: number) => 11 * 60 + 40 + Math.floor(played / MINUTE);
+
+function tickRound(state: GameState, now: number): Round {
+  const r = state.round;
+  if (now < r.lastPlay) return { ...r, lastPlay: now };
+  if (roundOver(state)) return r;
+  return { ...r, played: r.played + Math.min(now - r.lastPlay, MAX_TICK_MS), lastPlay: now };
+}
+
+/** one new plane for every free gate */
+export function arrivals(state: GameState, rnd: () => number): Plane[] {
+  const planes: Plane[] = [];
+  for (let plane = createPlane(state, rnd); plane; plane = createPlane(state, rnd)) {
+    planes.push(plane);
+    state = reducer(state, { type: "spawn", plane });
+  }
+  return planes;
 }
 
 export function freeGates(state: GameState) {
@@ -163,6 +210,7 @@ export function reducer(state: GameState, action: Action): GameState {
         log: [...state.log, { id: plane.id, flightNo: plane.flightNo, dest: plane.dest, type: plane.type, livery: plane.livery, at: action.at }],
         collected: state.collected.includes(plane.type) ? state.collected : [...state.collected, plane.type],
         selected: state.selected === plane.id ? (planes[0]?.id ?? null) : state.selected,
+        round: { ...state.round, departed: state.round.departed + 1 },
       };
     }
     case "select":
@@ -171,8 +219,16 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, season: action.season };
     case "sound":
       return { ...state, sound: action.on };
-    case "reset":
-      return { ...initialState(), sound: state.sound };
+    case "tick": {
+      const round = tickRound(state, action.now);
+      return round === state.round ? state : { ...state, round };
+    }
+    case "round":
+      return action.planes.reduce((s, plane) => reducer(s, { type: "spawn", plane }), { ...state, round: { played: 0, lastPlay: action.now, departed: 0 } });
+    case "reset": {
+      const fresh = { ...initialState(), sound: state.sound, round: state.round };
+      return state.round.played < ARRIVALS_MS ? fresh : { ...fresh, planes: [], selected: null };
+    }
   }
 }
 
@@ -181,6 +237,9 @@ function isPlane(p: unknown): p is Plane {
   return !!o && typeof o.id === "string" && typeof o.flightNo === "string" && typeof o.gate === "number" &&
     ["anflug", "einwinken", "abfertigung", "abflug"].includes(o.stage) && Array.isArray(o.done);
 }
+
+const isRound = (r: unknown): r is Round =>
+  !!r && [(r as Round).played, (r as Round).lastPlay, (r as Round).departed].every((n) => Number.isFinite(n) && n >= 0);
 
 export function parseSave(raw: string | null): GameState | null {
   if (!raw) return null;
@@ -193,6 +252,7 @@ export function parseSave(raw: string | null): GameState | null {
       ...data,
       planes: data.planes.map((p) => ({ ...p, done: p.done.filter((t) => tasks.includes(t)) })),
       collected: Array.isArray(data.collected) ? data.collected : [],
+      round: isRound(data.round) ? data.round : initialState().round,
     };
   } catch {
     return null;

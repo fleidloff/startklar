@@ -300,7 +300,7 @@ const NONE: Drawable[] = [];
 
 /** the painted picture still fills the screen at camera c and is not scaled up enough to look blurry */
 const covers = (b: Camera, c: Camera) =>
-  c.zoom / b.zoom < 1.5 && Math.abs(c.x - b.x) + 800 / c.zoom <= (800 * OVERSCAN) / b.zoom && Math.abs(c.y - b.y) + 500 / c.zoom <= (500 * OVERSCAN) / b.zoom;
+  c.zoom / b.zoom < 1.2 && Math.abs(c.x - b.x) + 800 / c.zoom <= (800 * OVERSCAN) / b.zoom && Math.abs(c.y - b.y) + 500 / c.zoom <= (500 * OVERSCAN) / b.zoom;
 
 const WorldContent = memo(function WorldContent({ season, items, under }: { season: Season; items: Drawable[]; under?: ReactNode }) {
   return (
@@ -344,12 +344,15 @@ export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, un
   }, [drawables, planes, docked, showProps, season]);
 
   const edge = `${(-(OVERSCAN - 1) * 50).toFixed(2)}%`;
+  const moving = view.x !== x || view.y !== y || view.zoom !== zoom;
+  // own GPU layer only while moving: Chrome keeps a will-change layer at its first raster scale, which blurs after the stage rescales
   const style = {
     left: edge,
     top: edge,
     width: `${OVERSCAN * 100}%`,
     height: `${OVERSCAN * 100}%`,
-    transform: view.x === x && view.y === y && view.zoom === zoom ? undefined : `translate(${(view.x - x) * zoom}px, ${(view.y - y) * zoom}px) scale(${zoom / view.zoom})`,
+    willChange: moving ? "transform" : undefined,
+    transform: moving ? `translate(${(view.x - x) * zoom}px, ${(view.y - y) * zoom}px) scale(${zoom / view.zoom})` : undefined,
   };
   return (
     <svg ref={svgRef} className={className} style={style} viewBox={viewBox(view.x, view.y, view.zoom / OVERSCAN)} preserveAspectRatio="xMidYMid slice" role="img" aria-label={label} {...handlers}>

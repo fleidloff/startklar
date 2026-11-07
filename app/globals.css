@@ -73,7 +73,6 @@ button {
 .fill {
   display: block;
   touch-action: none;
-  will-change: transform;
 }
 
 .iso-text {

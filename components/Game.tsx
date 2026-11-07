@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Apron, type Screen } from "./scenes/Apron";
 import { Tower } from "./scenes/Tower";
 import { Marshaller } from "./scenes/Marshaller";
 import { BusGame } from "./scenes/BusGame";
+import { FingerGame } from "./scenes/Finger";
 import { Pushback } from "./scenes/Pushback";
 import { Fuel } from "./scenes/Fuel";
 import { Baggage } from "./scenes/Baggage";
@@ -20,6 +21,7 @@ import {
   createPlane,
   initialState,
   loadGame,
+  openJobs,
   openTasks,
   readyForPushback,
   reducer,
@@ -41,27 +43,29 @@ interface Celebration {
   title: string;
   text: string;
   planeId?: string;
-  next?: Screen;
+  next: Screen[];
   stay?: { label: string; screen: Screen };
 }
 
 const TASK_DONE_TEXT: Record<TaskId, string> = {
   bus: "Alle Passagiere sind an Bord.",
+  finger: "Alle Passagiere sind durch den Finger ins Flugzeug gelaufen.",
   gepaeck: "Das Gepäck ist im Frachtraum.",
   tanken: "Der Tank ist voll genug für die Reise.",
   enteisung: "Die Flügel sind frei von Schnee und Eis.",
 };
 
-function nextStep(p: Plane | undefined, season: GameState["season"]): Screen | undefined {
-  if (!p) return undefined;
-  if (p.stage === "anflug") return "tower";
-  if (p.stage === "einwinken") return "einwinker";
-  if (p.stage === "abfertigung") return openTasks(p, season)[0] ?? "pushback";
-  return "start";
+function nextSteps(p: Plane | undefined, season: GameState["season"]): Screen[] {
+  if (!p) return [];
+  if (p.stage === "anflug") return ["tower"];
+  if (p.stage === "einwinken") return ["einwinker"];
+  if (p.stage === "abfertigung") return openJobs(p, season)[0] ?? ["pushback"];
+  return ["start"];
 }
 
 const screenLabel = (s: Screen) =>
   s === "tower" ? "Zum Tower" : s === "vorfeld" ? "Zum Vorfeld" : s === "weltkarte" ? "Zur Weltkarte" : tool(s as ToolId).label;
+const nextLabel = (s: Screen) => (s === "pushback" ? "Startklar! Zurückschieben" : s === "einwinker" ? "Jetzt einwinken!" : s === "start" ? "Ab zur Startbahn!" : screenLabel(s));
 const screenIcon = (s: Screen) => (s === "tower" ? "radar" : s === "vorfeld" ? "airport" : s === "weltkarte" ? "globe" : s);
 
 export default function Game() {
@@ -204,11 +208,11 @@ export default function Game() {
   const finish = (plane: Plane, title: string, text: string, after: Plane) => {
     sfx.success();
     setHint(null);
-    setCelebration({ title, text, planeId: plane.id, next: nextStep(after, state.season) });
+    setCelebration({ title, text, planeId: plane.id, next: nextSteps(after, state.season) });
   };
 
   const onTaskDone = (task: TaskId) => () => {
-    if (!active || active.done.includes(task)) return;
+    if (!active || !openTasks(active, state.season).includes(task)) return;
     dispatch({ type: "task", id: active.id, task });
     finish(active, PRAISE[Math.floor(Math.random() * PRAISE.length)], TASK_DONE_TEXT[task], { ...active, done: [...active.done, task] });
   };
@@ -234,7 +238,7 @@ export default function Game() {
     setHint(null);
     setScenePlane(null);
     setScreen("vorfeld");
-    setCelebration({ title: "Guten Flug!", text: `Flug ${active.flightNo} ist unterwegs nach ${d.city} (${d.iata}).${sticker}`, next: "weltkarte" });
+    setCelebration({ title: "Guten Flug!", text: `Flug ${active.flightNo} ist unterwegs nach ${d.city} (${d.iata}).${sticker}`, next: ["weltkarte"] });
   };
 
   const onLanded = (id: string) => {
@@ -249,12 +253,12 @@ export default function Game() {
       title: "Sicher gelandet!",
       text: `Flug ${plane.flightNo} aus ${destination(plane.dest).city} ist gelandet und rollt zum Gate ${plane.gate + 1}.`,
       planeId: id,
-      next: "einwinker",
+      next: ["einwinker"],
       stay: more ? { label: "Im Tower bleiben", screen: "tower" } : undefined,
     });
   };
 
-  const isTask = (s: Screen): s is TaskId => ["bus", "gepaeck", "tanken", "enteisung"].includes(s);
+  const isTask = (s: Screen): s is TaskId => ["bus", "finger", "gepaeck", "tanken", "enteisung"].includes(s);
   const latest = useRef<{ done: () => void; landed: (id: string) => void }>({ done: () => {}, landed: () => {} });
   useEffect(() => {
     latest.current = {
@@ -285,6 +289,8 @@ export default function Game() {
         return <Pushback key={active.id} state={state} plane={active} setHint={setHint} onDone={onDone} />;
       case "bus":
         return <BusGame key={active.id} {...sceneProps()!} />;
+      case "finger":
+        return <FingerGame key={active.id} {...sceneProps()!} />;
       case "tanken":
         return <Fuel key={active.id} {...sceneProps()!} />;
       case "gepaeck":
@@ -316,6 +322,7 @@ export default function Game() {
                   <RoundButton
                     key={t.id}
                     icon={t.id}
+                    size={84}
                     label={t.label}
                     color={t.color}
                     active={screen === t.id}
@@ -336,7 +343,7 @@ export default function Game() {
                   color={GATE_COLORS[p.gate]}
                   size={84}
                   active={p.id === state.selected}
-                  badge={p.stage === "abfertigung" ? openTasks(p, state.season).length || "✓" : "!"}
+                  badge={p.stage === "abfertigung" ? openJobs(p, state.season).length || "✓" : "!"}
                   onClick={() => {
                     sfx.click();
                     dispatch({ type: "select", id: p.id });
@@ -428,11 +435,11 @@ export default function Game() {
             <h2>{celebration.title}</h2>
             <p className="modal-text">{celebration.text}</p>
             <div className="modal-actions">
-              {celebration.next && (
-                <BigButton autoFocus icon={screenIcon(celebration.next)} onClick={() => (celebration.next === "tower" ? go("tower", celebration.planeId) : celebration.next === "vorfeld" || celebration.next === "weltkarte" ? go(celebration.next) : openTool(celebration.next as ToolId, celebration.planeId))}>
-                  {celebration.next === "pushback" ? "Startklar! Zurückschieben" : celebration.next === "einwinker" ? "Jetzt einwinken!" : celebration.next === "start" ? "Ab zur Startbahn!" : screenLabel(celebration.next)}
+              {celebration.next.map((next, i) => (
+                <BigButton key={next} autoFocus={i === 0} icon={screenIcon(next)} color={celebration.next.length > 1 ? tool(next as ToolId).color : undefined} onClick={() => (next === "tower" ? go("tower", celebration.planeId) : next === "vorfeld" || next === "weltkarte" ? go(next) : openTool(next as ToolId, celebration.planeId))}>
+                  {nextLabel(next)}
                 </BigButton>
-              )}
+              ))}
               {celebration.stay && (
                 <BigButton color="#2c7a52" icon="radar" onClick={() => go(celebration.stay!.screen)}>
                   {celebration.stay.label}
@@ -533,12 +540,16 @@ function Checklist({ plane, state, onClose, onGo }: { plane: Plane; state: GameS
   const d = destination(plane.dest);
   const landed = plane.stage !== "anflug";
   const parked = plane.stage === "abfertigung" || plane.stage === "abflug";
-  const rows: { label: string; done: boolean; screen: Screen; icon: string; enabled: boolean }[] = [
-    { label: "Landen (Tower)", done: landed, screen: "tower", icon: "radar", enabled: !landed },
-    { label: "Einwinken", done: parked, screen: "einwinker", icon: "einwinker", enabled: plane.stage === "einwinken" },
-    ...requiredTasks(state.season).map((t) => ({ label: tool(t).label, done: plane.done.includes(t) || plane.stage === "abflug", screen: t as Screen, icon: t, enabled: parked && plane.stage !== "abflug" && !plane.done.includes(t) })),
-    { label: "Zurückschieben", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) },
-    { label: "Start", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" },
+  const rows: { label: string; done: boolean; screen: Screen; icon: string; enabled: boolean }[][] = [
+    [{ label: "Landen (Tower)", done: landed, screen: "tower", icon: "radar", enabled: !landed }],
+    [{ label: "Einwinken", done: parked, screen: "einwinker", icon: "einwinker", enabled: plane.stage === "einwinken" }],
+    ...requiredTasks(state.season).map((job) => {
+      const used = job.find((t) => plane.done.includes(t));
+      const done = !!used || plane.stage === "abflug";
+      return (done ? [used ?? job[0]] : job).map((t) => ({ label: tool(t).label, done, screen: t as Screen, icon: t, enabled: parked && !done }));
+    }),
+    [{ label: "Zurückschieben", done: plane.stage === "abflug", screen: "pushback", icon: "pushback", enabled: readyForPushback(plane, state.season) }],
+    [{ label: "Start", done: false, screen: "start", icon: "start", enabled: plane.stage === "abflug" }],
   ];
   const t = aircraft(plane.type);
   return (
@@ -550,14 +561,19 @@ function Checklist({ plane, state, onClose, onGo }: { plane: Plane; state: GameS
         {t.name} · Gate {plane.gate + 1} · {landed ? "nach" : "aus"} {d.city}
       </p>
       <ul className="checklist">
-        {rows.map((r) => (
-          <li key={r.label}>
-            <button type="button" disabled={!r.enabled} onClick={() => onGo(r.screen)} className={r.done ? "done" : r.enabled ? "open" : "later"}>
-              <span className="check" aria-hidden="true">{r.done ? "✓" : ""}</span>
-              <Icon name={r.icon} size={38} />
-              <span>{r.label}</span>
-              <span className="state">{r.done ? "erledigt" : r.enabled ? "Los!" : "später"}</span>
-            </button>
+        {rows.map((row) => (
+          <li key={row[0].label} className={row.length > 1 ? "choice" : undefined}>
+            {row.map((r, i) => (
+              <Fragment key={r.label}>
+                {i > 0 && <span className="or">oder</span>}
+                <button type="button" disabled={!r.enabled} onClick={() => onGo(r.screen)} className={r.done ? "done" : r.enabled ? "open" : "later"}>
+                  {row.length === 1 && <span className="check" aria-hidden="true">{r.done ? "✓" : ""}</span>}
+                  <Icon name={r.icon} size={38} />
+                  <span>{r.label}</span>
+                  <span className="state">{r.done ? "erledigt" : r.enabled ? "Los!" : "später"}</span>
+                </button>
+              </Fragment>
+            ))}
           </li>
         ))}
       </ul>
@@ -569,7 +585,7 @@ function Help({ onClose }: { onClose: () => void }) {
   const steps: [string, string][] = [
     ["radar", "Im Tower ziehst du mit dem Finger eine Linie vom Flugzeug zur Landebahn."],
     ["einwinker", "Winke das Flugzeug mit beiden Leuchtstäben bis zur STOP-Linie."],
-    ["checkliste", "Erledige alle Aufgaben: Bus, Gepäck und Tanken. Im Winter auch Enteisen."],
+    ["checkliste", "Erledige alle Aufgaben: Passagiere mit dem Bus oder mit dem Finger einsteigen lassen, Gepäck und Tanken. Im Winter auch Enteisen."],
     ["pushback", "Schiebe das Flugzeug mit dem Schlepper auf die gelbe Linie. Guten Flug!"],
     ["globe", "Auf der Weltkarte siehst du, wohin deine Flugzeuge fliegen, und sammelst Flugzeug-Sticker."],
   ];

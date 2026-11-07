@@ -15,6 +15,16 @@ const ICONS: Record<string, ReactNode> = {
       <circle cx={44} cy={46} r={5} fill="#3b4250" />
     </g>
   ),
+  finger: (
+    <g {...s}>
+      <rect x={4} y={18} width={16} height={36} rx={4} fill="#c9d2dc" />
+      <line x1={36} y1={36} x2={36} y2={50} />
+      <rect x={28} y={48} width={16} height={5} rx={2} fill="#6f7787" />
+      <rect x={16} y={20} width={30} height={16} rx={2} fill="#fff" />
+      <path d="M26,20 v16 M36,20 v16" />
+      <rect x={44} y={14} width={16} height={24} rx={3} fill="#7cc4ec" />
+    </g>
+  ),
   pushback: (
     <g {...s}>
       <rect x={8} y={28} width={34} height={14} rx={3} fill="#f6c02c" />

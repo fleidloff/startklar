@@ -7,7 +7,7 @@ import type { FeatureCollection } from "geojson";
 import world from "world-atlas/countries-110m.json";
 import { OUT, SidePlane } from "../art";
 import { Flag, Modal } from "../ui";
-import { AIRCRAFT, DESTINATIONS, HOME, destination, distanceKm, flightTime, type AircraftType, type Destination } from "@/game/data";
+import { AIRCRAFT, COUNTRIES, DESTINATIONS, HOME, destination, distanceKm, flightTime, type AircraftType, type Destination } from "@/game/data";
 import type { GameState } from "@/game/state";
 
 const PALETTE = ["#8fd16a", "#f5d75a", "#f4a95a", "#f29bb5", "#b59cf0", "#6fd1c2", "#9fd36f", "#f7c46b"];
@@ -79,7 +79,7 @@ export function WorldMap({ state }: { state: GameState }) {
           const [x, y] = proj(d.lon, d.lat);
           const v = visited.get(d.id);
           return (
-            <g key={d.id} role="button" tabIndex={0} aria-label={`${d.city}, ${d.country}`} onClick={() => setInfo(d)} onKeyDown={(e) => e.key === "Enter" && setInfo(d)} style={{ cursor: "pointer" }}>
+            <g key={d.id} role="button" tabIndex={0} aria-label={`${d.city}, ${COUNTRIES[d.flag].name}`} onClick={() => setInfo(d)} onKeyDown={(e) => e.key === "Enter" && setInfo(d)} style={{ cursor: "pointer" }}>
               <circle cx={x} cy={y} r={22} fill="transparent" />
               <circle cx={x} cy={y} r={v ? 9 : 6} fill={v ? "#fff" : "#e9edf2"} stroke={OUT} strokeWidth={2.5} />
               {v && <circle cx={x} cy={y} r={4} fill={v.livery} />}
@@ -163,7 +163,7 @@ function DestinationInfo({ d, visits, onClose }: { d: Destination; visits: numbe
       <h2 className="with-flag">
         {d.city} ({d.iata}) <Flag code={d.flag} height={32} />
       </h2>
-      <p className="modal-sub">{d.country}</p>
+      <p className="modal-sub">{COUNTRIES[d.flag].name}</p>
       <p className="modal-text">{d.fact}</p>
       <dl className="fact-grid">
         <dt>Entfernung</dt><dd>{km.toLocaleString("de-DE")} km</dd>

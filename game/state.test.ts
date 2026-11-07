@@ -15,7 +15,7 @@ test("a plane goes from radar to departure and lands in the log", () => {
   s = reducer(s, { type: "parked", id });
   s = reducer(s, { type: "season", season: "winter" });
   const plane = () => s.planes.find((p) => p.id === id)!;
-  assert.deepEqual(openTasks(plane(), s.season), ["bus", "gepaeck", "tanken", "enteisung"]);
+  assert.deepEqual(openTasks(plane(), s.season), ["bus", "finger", "gepaeck", "tanken", "enteisung"]);
   s = reducer(s, { type: "pushed", id });
   assert.equal(plane().stage, "abfertigung", "no pushback with open tasks");
   for (const task of openTasks(plane(), s.season)) s = reducer(s, { type: "task", id, task });
@@ -25,6 +25,20 @@ test("a plane goes from radar to departure and lands in the log", () => {
   assert.equal(s.planes.some((p) => p.id === id), false);
   assert.deepEqual(s.collected, ["B787"]);
   assert.equal(s.log[0].dest, "HND");
+});
+
+test("passengers board by bus or by finger, and one way closes the other", () => {
+  for (const [first, second] of [["bus", "finger"], ["finger", "bus"]] as const) {
+    let s = initialState();
+    const plane = () => s.planes.find((p) => p.id === "p1")!;
+    assert.deepEqual(openTasks(plane(), s.season).slice(0, 2), ["bus", "finger"]);
+    s = reducer(s, { type: "task", id: "p1", task: first });
+    assert.deepEqual(openTasks(plane(), s.season), ["gepaeck", "tanken"]);
+    const before = s;
+    s = reducer(s, { type: "task", id: "p1", task: second });
+    assert.deepEqual(s.planes, before.planes, "the other way is closed");
+    assert.deepEqual(parseSave(JSON.stringify(s))!.planes.find((p) => p.id === "p1")!.done, [first]);
+  }
 });
 
 test("spawning fills free gates only and never duplicates flight numbers", () => {

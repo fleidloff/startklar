@@ -31,7 +31,7 @@ export function turnaroundProps(p: Plane, waitingBus = true): Drawable[] {
   return [
     { key: `stairs-${p.id}`, depth: stairsX + y + g.r + 3.5, node: <Stairs x={stairsX} y={y + g.r + 3.5} heading={Math.PI / 2} h={g.zc - 0.2} /> },
     { key: `belt-${p.id}`, depth: beltX + y + g.r + 5, node: <BeltLoader x={beltX} y={y + g.r + 5.5} heading={-Math.PI / 2} top={P(beltX, y + g.r * 0.9, g.zc - g.r * 0.4)} /> },
-    ...(!waitingBus || p.done.includes("bus") ? [] : [{ key: `bus-${p.id}`, depth: busWait(p.gate).x + busWait(p.gate).y, node: <Bus {...busWait(p.gate)} /> }]),
+    ...(!waitingBus || p.done.some((t) => t === "bus" || t === "finger") ? [] : [{ key: `bus-${p.id}`, depth: busWait(p.gate).x + busWait(p.gate).y, node: <Bus {...busWait(p.gate)} /> }]),
   ];
 }
 

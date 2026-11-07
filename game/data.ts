@@ -1,12 +1,11 @@
-export type TaskId = "bus" | "gepaeck" | "tanken" | "enteisung";
+export type TaskId = "bus" | "finger" | "gepaeck" | "tanken" | "enteisung";
 export type ToolId = TaskId | "pushback" | "start" | "einwinker" | "checkliste";
 
 export interface Destination {
   id: string;
   city: string;
   iata: string;
-  country: string;
-  flag: string;
+  flag: CountryCode;
   lat: number;
   lon: number;
   fact: string;
@@ -33,32 +32,61 @@ export interface AircraftType {
 
 export const HOME = { name: "Unser Flughafen", lat: 50.03, lon: 8.57 };
 
+export const COUNTRIES = {
+  DE: { name: "Deutschland", continent: "Europa", people: "84 Millionen" },
+  FR: { name: "Frankreich", continent: "Europa", people: "68 Millionen" },
+  GB: { name: "Großbritannien", continent: "Europa", people: "69 Millionen" },
+  IT: { name: "Italien", continent: "Europa", people: "59 Millionen" },
+  ES: { name: "Spanien", continent: "Europa", people: "49 Millionen" },
+  AT: { name: "Österreich", continent: "Europa", people: "9 Millionen" },
+  CH: { name: "Schweiz", continent: "Europa", people: "9 Millionen" },
+  NO: { name: "Norwegen", continent: "Europa", people: "6 Millionen" },
+  IS: { name: "Island", continent: "Europa", people: "400 Tausend" },
+  TR: { name: "Türkei", continent: "Europa und Asien", people: "86 Millionen" },
+  EG: { name: "Ägypten", continent: "Afrika", people: "116 Millionen" },
+  KE: { name: "Kenia", continent: "Afrika", people: "57 Millionen" },
+  ZA: { name: "Südafrika", continent: "Afrika", people: "64 Millionen" },
+  AE: { name: "Vereinigte Arabische Emirate", continent: "Asien", people: "11 Millionen" },
+  IN: { name: "Indien", continent: "Asien", people: "1,5 Milliarden" },
+  TH: { name: "Thailand", continent: "Asien", people: "72 Millionen" },
+  CN: { name: "China", continent: "Asien", people: "1,4 Milliarden" },
+  JP: { name: "Japan", continent: "Asien", people: "124 Millionen" },
+  AU: { name: "Australien", continent: "Australien", people: "27 Millionen" },
+  US: { name: "USA", continent: "Nordamerika", people: "340 Millionen" },
+  CA: { name: "Kanada", continent: "Nordamerika", people: "41 Millionen" },
+  MX: { name: "Mexiko", continent: "Nordamerika", people: "130 Millionen" },
+  BR: { name: "Brasilien", continent: "Südamerika", people: "212 Millionen" },
+  AR: { name: "Argentinien", continent: "Südamerika", people: "46 Millionen" },
+} satisfies Record<string, { name: string; continent: string; people: string }>;
+
+export type CountryCode = keyof typeof COUNTRIES;
+
 export const DESTINATIONS: Destination[] = [
-  { id: "BER", city: "Berlin", iata: "BER", country: "Deutschland", flag: "DE", lat: 52.36, lon: 13.5, fact: "Berlin ist die Hauptstadt von Deutschland. Dort steht das Brandenburger Tor." },
-  { id: "HND", city: "Tokio", iata: "HND", country: "Japan", flag: "JP", lat: 35.55, lon: 139.78, fact: "Tokio ist eine der größten Städte der Welt. Bei klarem Wetter sieht man den Berg Fuji." },
-  { id: "CDG", city: "Paris", iata: "CDG", country: "Frankreich", flag: "FR", lat: 49.01, lon: 2.55, fact: "In Paris steht der Eiffelturm. Er ist 330 Meter hoch." },
-  { id: "LHR", city: "London", iata: "LHR", country: "Großbritannien", flag: "GB", lat: 51.47, lon: -0.45, fact: "In London fahren rote Doppeldeckerbusse durch die Straßen." },
-  { id: "FCO", city: "Rom", iata: "FCO", country: "Italien", flag: "IT", lat: 41.8, lon: 12.25, fact: "Rom ist fast 3000 Jahre alt. Dort steht das riesige Kolosseum." },
-  { id: "MAD", city: "Madrid", iata: "MAD", country: "Spanien", flag: "ES", lat: 40.49, lon: -3.57, fact: "Madrid ist die Hauptstadt von Spanien und liegt genau in der Mitte des Landes." },
-  { id: "PMI", city: "Palma de Mallorca", iata: "PMI", country: "Spanien", flag: "ES", lat: 39.55, lon: 2.74, fact: "Mallorca ist eine Insel im Mittelmeer. Perfekt zum Baden!" },
-  { id: "VIE", city: "Wien", iata: "VIE", country: "Österreich", flag: "AT", lat: 48.11, lon: 16.57, fact: "In Wien gibt es den ältesten Zoo der Welt: den Tiergarten Schönbrunn." },
-  { id: "ZRH", city: "Zürich", iata: "ZRH", country: "Schweiz", flag: "CH", lat: 47.46, lon: 8.55, fact: "Die Schweiz ist berühmt für hohe Berge, Käse und Schokolade." },
-  { id: "OSL", city: "Oslo", iata: "OSL", country: "Norwegen", flag: "NO", lat: 60.19, lon: 11.1, fact: "In Norwegen gibt es Fjorde. Das sind lange, tiefe Meeresarme zwischen Bergen." },
-  { id: "KEF", city: "Reykjavík", iata: "KEF", country: "Island", flag: "IS", lat: 63.99, lon: -22.62, fact: "Auf Island gibt es Vulkane, Gletscher und heiße Quellen." },
-  { id: "IST", city: "Istanbul", iata: "IST", country: "Türkei", flag: "TR", lat: 41.26, lon: 28.74, fact: "Istanbul liegt auf zwei Kontinenten: in Europa und in Asien!" },
-  { id: "CAI", city: "Kairo", iata: "CAI", country: "Ägypten", flag: "EG", lat: 30.12, lon: 31.41, fact: "Ganz in der Nähe von Kairo stehen die Pyramiden von Gizeh." },
-  { id: "NBO", city: "Nairobi", iata: "NBO", country: "Kenia", flag: "KE", lat: -1.32, lon: 36.93, fact: "Direkt neben Nairobi ist ein Nationalpark mit Giraffen, Zebras und Löwen." },
-  { id: "CPT", city: "Kapstadt", iata: "CPT", country: "Südafrika", flag: "ZA", lat: -33.97, lon: 18.6, fact: "Über Kapstadt steht der flache Tafelberg. Am Strand leben Pinguine!" },
-  { id: "DXB", city: "Dubai", iata: "DXB", country: "Vereinigte Arabische Emirate", flag: "AE", lat: 25.25, lon: 55.36, fact: "In Dubai steht das höchste Haus der Welt: der Burj Khalifa mit 828 Metern." },
-  { id: "BOM", city: "Mumbai", iata: "BOM", country: "Indien", flag: "IN", lat: 19.09, lon: 72.87, fact: "In Mumbai ist Bollywood zu Hause. Hier entstehen sehr viele Filme." },
-  { id: "BKK", city: "Bangkok", iata: "BKK", country: "Thailand", flag: "TH", lat: 13.69, lon: 100.75, fact: "In Bangkok gibt es schwimmende Märkte. Dort verkaufen die Leute Obst von Booten aus." },
-  { id: "PEK", city: "Peking", iata: "PEK", country: "China", flag: "CN", lat: 40.08, lon: 116.58, fact: "Nicht weit von Peking kann man auf der Chinesischen Mauer wandern." },
-  { id: "SYD", city: "Sydney", iata: "SYD", country: "Australien", flag: "AU", lat: -33.95, lon: 151.18, fact: "In Sydney steht ein Opernhaus, das wie Segel aussieht. In Australien leben Kängurus." },
-  { id: "JFK", city: "New York", iata: "JFK", country: "USA", flag: "US", lat: 40.64, lon: -73.78, fact: "In New York steht die Freiheitsstatue. Sie ist grün, weil sie aus Kupfer ist." },
-  { id: "YYZ", city: "Toronto", iata: "YYZ", country: "Kanada", flag: "CA", lat: 43.68, lon: -79.63, fact: "Kanada hat ein rotes Ahornblatt auf der Flagge." },
-  { id: "MEX", city: "Mexiko-Stadt", iata: "MEX", country: "Mexiko", flag: "MX", lat: 19.44, lon: -99.07, fact: "Mexiko-Stadt liegt über 2000 Meter hoch zwischen Bergen und Vulkanen." },
-  { id: "GIG", city: "Rio de Janeiro", iata: "GIG", country: "Brasilien", flag: "BR", lat: -22.81, lon: -43.25, fact: "In Rio steht auf einem Berg eine riesige Christus-Statue." },
-  { id: "EZE", city: "Buenos Aires", iata: "EZE", country: "Argentinien", flag: "AR", lat: -34.82, lon: -58.54, fact: "In Argentinien tanzt man Tango." },
+  { id: "BER", city: "Berlin", iata: "BER", flag: "DE", lat: 52.36, lon: 13.5, fact: "Berlin ist die Hauptstadt von Deutschland. Dort steht das Brandenburger Tor." },
+  { id: "HND", city: "Tokio", iata: "HND", flag: "JP", lat: 35.55, lon: 139.78, fact: "Tokio ist eine der größten Städte der Welt. Bei klarem Wetter sieht man den Berg Fuji." },
+  { id: "CDG", city: "Paris", iata: "CDG", flag: "FR", lat: 49.01, lon: 2.55, fact: "In Paris steht der Eiffelturm. Er ist 330 Meter hoch." },
+  { id: "LHR", city: "London", iata: "LHR", flag: "GB", lat: 51.47, lon: -0.45, fact: "In London fahren rote Doppeldeckerbusse durch die Straßen." },
+  { id: "FCO", city: "Rom", iata: "FCO", flag: "IT", lat: 41.8, lon: 12.25, fact: "Rom ist fast 3000 Jahre alt. Dort steht das riesige Kolosseum." },
+  { id: "MAD", city: "Madrid", iata: "MAD", flag: "ES", lat: 40.49, lon: -3.57, fact: "Madrid ist die Hauptstadt von Spanien und liegt genau in der Mitte des Landes." },
+  { id: "PMI", city: "Palma de Mallorca", iata: "PMI", flag: "ES", lat: 39.55, lon: 2.74, fact: "Mallorca ist eine Insel im Mittelmeer. Perfekt zum Baden!" },
+  { id: "VIE", city: "Wien", iata: "VIE", flag: "AT", lat: 48.11, lon: 16.57, fact: "In Wien gibt es den ältesten Zoo der Welt: den Tiergarten Schönbrunn." },
+  { id: "ZRH", city: "Zürich", iata: "ZRH", flag: "CH", lat: 47.46, lon: 8.55, fact: "Die Schweiz ist berühmt für hohe Berge, Käse und Schokolade." },
+  { id: "OSL", city: "Oslo", iata: "OSL", flag: "NO", lat: 60.19, lon: 11.1, fact: "In Norwegen gibt es Fjorde. Das sind lange, tiefe Meeresarme zwischen Bergen." },
+  { id: "KEF", city: "Reykjavík", iata: "KEF", flag: "IS", lat: 63.99, lon: -22.62, fact: "Auf Island gibt es Vulkane, Gletscher und heiße Quellen." },
+  { id: "IST", city: "Istanbul", iata: "IST", flag: "TR", lat: 41.26, lon: 28.74, fact: "Istanbul liegt auf zwei Kontinenten: in Europa und in Asien!" },
+  { id: "CAI", city: "Kairo", iata: "CAI", flag: "EG", lat: 30.12, lon: 31.41, fact: "Ganz in der Nähe von Kairo stehen die Pyramiden von Gizeh." },
+  { id: "NBO", city: "Nairobi", iata: "NBO", flag: "KE", lat: -1.32, lon: 36.93, fact: "Direkt neben Nairobi ist ein Nationalpark mit Giraffen, Zebras und Löwen." },
+  { id: "CPT", city: "Kapstadt", iata: "CPT", flag: "ZA", lat: -33.97, lon: 18.6, fact: "Über Kapstadt steht der flache Tafelberg. Am Strand leben Pinguine!" },
+  { id: "DXB", city: "Dubai", iata: "DXB", flag: "AE", lat: 25.25, lon: 55.36, fact: "In Dubai steht das höchste Haus der Welt: der Burj Khalifa mit 828 Metern." },
+  { id: "BOM", city: "Mumbai", iata: "BOM", flag: "IN", lat: 19.09, lon: 72.87, fact: "In Mumbai ist Bollywood zu Hause. Hier entstehen sehr viele Filme." },
+  { id: "BKK", city: "Bangkok", iata: "BKK", flag: "TH", lat: 13.69, lon: 100.75, fact: "In Bangkok gibt es schwimmende Märkte. Dort verkaufen die Leute Obst von Booten aus." },
+  { id: "PEK", city: "Peking", iata: "PEK", flag: "CN", lat: 40.08, lon: 116.58, fact: "Nicht weit von Peking kann man auf der Chinesischen Mauer wandern." },
+  { id: "SYD", city: "Sydney", iata: "SYD", flag: "AU", lat: -33.95, lon: 151.18, fact: "In Sydney steht ein Opernhaus, das wie Segel aussieht. In Australien leben Kängurus." },
+  { id: "JFK", city: "New York", iata: "JFK", flag: "US", lat: 40.64, lon: -73.78, fact: "In New York steht die Freiheitsstatue. Sie ist grün, weil sie aus Kupfer ist." },
+  { id: "YYZ", city: "Toronto", iata: "YYZ", flag: "CA", lat: 43.68, lon: -79.63, fact: "Kanada hat ein rotes Ahornblatt auf der Flagge." },
+  { id: "MEX", city: "Mexiko-Stadt", iata: "MEX", flag: "MX", lat: 19.44, lon: -99.07, fact: "Mexiko-Stadt liegt über 2000 Meter hoch zwischen Bergen und Vulkanen." },
+  { id: "GIG", city: "Rio de Janeiro", iata: "GIG", flag: "BR", lat: -22.81, lon: -43.25, fact: "In Rio steht auf einem Berg eine riesige Christus-Statue." },
+  { id: "EZE", city: "Buenos Aires", iata: "EZE", flag: "AR", lat: -34.82, lon: -58.54, fact: "In Argentinien tanzt man Tango." },
 ];
 
 export const AIRCRAFT: AircraftType[] = [
@@ -89,6 +117,7 @@ export interface ToolMeta {
 
 export const TOOLS: ToolMeta[] = [
   { id: "bus", label: "Vorfeldbus", color: "#e8574a", todo: "Passagiere bringen!" },
+  { id: "finger", label: "Finger", color: "#3cc0d8", todo: "Finger andocken!" },
   { id: "pushback", label: "Pushback-Schlepper", color: "#4cbb6c", todo: "Zurückschieben!" },
   { id: "start", label: "Start", color: "#ef6fae", todo: "Ab zur Startbahn!" },
   { id: "tanken", label: "Betankung", color: "#f06a3c", todo: "Auftanken!" },

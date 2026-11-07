@@ -227,6 +227,81 @@ text {
   display: block;
 }
 
+.flag-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.flag-btn {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.flag-btn::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+}
+
+.flag-bubble {
+  position: absolute;
+  top: calc(100% + 16px);
+  right: -14px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: 340px;
+  padding: 14px 22px 16px;
+  background: var(--cream);
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center;
+  transform-origin: top right;
+  animation: pop-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.flag-btn[aria-expanded="true"]::after {
+  content: "";
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 41;
+  width: 20px;
+  height: 20px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: var(--cream);
+  border-left: 4px solid var(--ink);
+  border-top: 4px solid var(--ink);
+}
+
+.flag-bubble > span {
+  display: block;
+  white-space: normal;
+}
+
+.flag-bubble .nowrap {
+  display: inline;
+  white-space: nowrap;
+}
+
+.flag-bubble b {
+  font-size: 32px;
+  line-height: 1.1;
+}
+
 .sidebar-right {
   position: absolute;
   right: 14px;
@@ -423,6 +498,22 @@ text {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+}
+
+.checklist .choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checklist .choice button {
+  flex: 1;
+}
+
+.checklist .or {
+  font-size: 21px;
+  font-weight: 700;
+  color: #5b6779;
 }
 
 .checklist button:disabled {

@@ -50,15 +50,18 @@ export type Action =
 export const GATES = 3;
 const SAVE_KEY = "flughafen-startklar";
 
-export function requiredTasks(season: Season): TaskId[] {
-  const base: TaskId[] = ["bus", "gepaeck", "tanken"];
-  return season === "winter" ? [...base, "enteisung"] : base;
+/** each job lists the tools that can do it: passengers board by bus or by finger */
+export function requiredTasks(season: Season): TaskId[][] {
+  const base: TaskId[][] = [["bus", "finger"], ["gepaeck"], ["tanken"]];
+  return season === "winter" ? [...base, ["enteisung"]] : base;
 }
 
-export function openTasks(plane: Plane, season: Season): TaskId[] {
+export function openJobs(plane: Plane, season: Season): TaskId[][] {
   if (plane.stage !== "abfertigung") return [];
-  return requiredTasks(season).filter((t) => !plane.done.includes(t));
+  return requiredTasks(season).filter((job) => !job.some((t) => plane.done.includes(t)));
 }
+
+export const openTasks = (plane: Plane, season: Season): TaskId[] => openJobs(plane, season).flat();
 
 export function readyForPushback(plane: Plane, season: Season) {
   return plane.stage === "abfertigung" && openTasks(plane, season).length === 0;
@@ -74,9 +77,9 @@ export function todoText(plane: Plane | undefined, season: Season): string {
     case "abflug":
       return "Bereit zum Start! Ab zur Startbahn!";
     case "abfertigung": {
-      const open = openTasks(plane, season);
-      if (open.length === 0) return "Startklar! Zurückschieben!";
-      return tool(open[0]).todo;
+      const job = openJobs(plane, season)[0];
+      if (!job) return "Startklar! Zurückschieben!";
+      return job.length > 1 ? `${job.map((t) => tool(t).label).join(" oder ")}? Du hast die Wahl!` : tool(job[0]).todo;
     }
   }
 }
@@ -142,10 +145,12 @@ export function reducer(state: GameState, action: Action): GameState {
       return update(state, action.id, (p) => (p.stage === "anflug" ? { stage: "einwinken" } : {}));
     case "parked":
       return update(state, action.id, (p) => (p.stage === "einwinken" ? { stage: "abfertigung" } : {}));
-    case "task":
+    case "task": {
+      const job = requiredTasks("winter").find((j) => j.includes(action.task)) ?? [];
       return update(state, action.id, (p) =>
-        p.stage === "abfertigung" && !p.done.includes(action.task) ? { done: [...p.done, action.task] } : {},
+        p.stage === "abfertigung" && job.length > 0 && !job.some((t) => p.done.includes(t)) ? { done: [...p.done, action.task] } : {},
       );
+    }
     case "pushed":
       return update(state, action.id, (p) => (readyForPushback(p, state.season) ? { stage: "abflug" } : {}));
     case "departed": {
@@ -182,7 +187,7 @@ export function parseSave(raw: string | null): GameState | null {
   try {
     const data = JSON.parse(raw) as GameState;
     if (data?.v !== 1 || !Array.isArray(data.planes) || !data.planes.every(isPlane) || !Array.isArray(data.log)) return null;
-    const tasks = requiredTasks("winter");
+    const tasks = requiredTasks("winter").flat();
     return {
       ...initialState(),
       ...data,

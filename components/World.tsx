@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
-import { BaggageCart, Box, Cone, Cylinder, FaceText, OUT, Person, Plane, Tug, Wheel, Detail, type Drawable } from "./art";
+import { BaggageCart, Box, Cone, Cylinder, FaceText, OUT, Person, Plane, Tug, Wheel, Detail, local, type Drawable } from "./art";
 import { P, arc, gateY, pts, shade, viewBox, type Pt } from "@/game/iso";
 import type { Plane as PlaneT, Season } from "@/game/state";
 import { aircraft } from "@/game/data";
@@ -221,38 +221,81 @@ function Tower({ season }: { season: Season }) {
   );
 }
 
-function Bridge({ gate, docked, plane }: { gate: number; docked: boolean; plane?: string }) {
-  const y = gateY(gate);
-  const r = plane ? aircraft(plane).radius : 2;
-  const L = plane ? aircraft(plane).gameLength : 30;
-  const yb = y - r - 1.9;
-  const x0 = 4;
-  const x1 = docked ? 7.3 + L * 0.12 : 6.8;
-  const n = 5;
-  const seg = (x1 - x0) / n;
-  const z = docked ? r + 0.5 : 2.5;
-  const px = x0 + (x1 - x0) * 0.7;
+/** the rotunda the finger turns around; fixed per gate, so the finger angles in to fit every plane size */
+export const bridgePivot = (gate: number): Pt => [1.8, gateY(gate) - 6.5];
+
+/** cab centre when docked at the front door of a parked plane */
+export function bridgeDoor(gate: number, type: string): Pt {
+  const t = aircraft(type);
+  return [8.2 + t.gameLength * 0.12, gateY(gate) - t.radius - 1.9];
+}
+
+/** cab centre when pulled in and turned away from the stand */
+export function bridgeParked(gate: number): Pt {
+  const [x, y] = bridgePivot(gate);
+  return [x + 5.5 * Math.cos(-1.2), y + 5.5 * Math.sin(-1.2)];
+}
+
+export const bridgeDepth = (gate: number) => gateY(gate) - 8;
+
+export const bridgeHeight = (type?: string) => (type ? aircraft(type).radius + 0.5 : 2.5);
+
+export function Bridge({ gate, cab, z }: { gate: number; cab: Pt; z: number }) {
+  const [px, py] = bridgePivot(gate);
+  const end: Pt = [cab[0] - 0.9, cab[1]];
+  const a = Math.atan2(end[1] - py, end[0] - px);
+  const [ux, uy] = [Math.cos(a), Math.sin(a)];
+  const len = Math.max(0.6, Math.hypot(end[0] - px, end[1] - py) - 2.2);
+  const n = Math.max(2, Math.round(len / 1.4));
+  const seg = len / n;
+  const at = (s: number): Pt => [px + ux * (2.2 + s), py + uy * (2.2 + s)];
+  const leg = at(len * 0.7);
+  const L = local(leg[0], leg[1], a);
+  const parts: Drawable[] = [
+    {
+      key: "leg",
+      depth: leg[0] + leg[1] + 0.5,
+      node: (
+        <g>
+          <Box x={leg[0]} y={leg[1]} heading={a} l={0.8} w={0.8} h={z - 1} z={1} color="#9aa3ad" />
+          <Wheel at={L(-1, 0.7, 0.5)} r={0.5} />
+          <Box x={leg[0]} y={leg[1]} heading={a} l={2.6} w={1.4} h={0.6} z={0.5} color="#6f7787" />
+          <Wheel at={L(1, 0.7, 0.5)} r={0.5} />
+        </g>
+      ),
+    },
+    ...[...Array(n).keys()].map((i) => {
+      const c = RAINBOW[i % RAINBOW.length];
+      const [x, y] = at(seg * (i + 0.5));
+      return {
+        key: `seg${i}`,
+        depth: x + y,
+        node: (
+          <Box x={x} y={y} heading={a} l={seg * 1.02} w={2.6} h={3} z={z} color={c} top={shade(c, 1.25)}>
+            {(f) => <path d={[0.25, 0.5, 0.75].map((t) => `M${f.at(t, 0.3).join(",")}L${f.at(t, 2.7).join(",")}`).join("")} stroke={shade(c, 0.72)} strokeWidth={1.6} />}
+          </Box>
+        ),
+      };
+    }),
+    { key: "rotunda", depth: px + py, node: <Cylinder x={px} y={py} z0={z - 0.3} z1={z + 3.4} r={2.1} color="#c9d2dc" top="#e3e8ee" /> },
+    {
+      key: "cab",
+      depth: cab[0] + cab[1],
+      node: (
+        <Box x={cab[0]} y={cab[1]} l={1.8} w={3.2} h={3.4} z={z - 0.2} color="#dfe5ec">
+          {(f) => <polygon points={pts([f.at(0.2, 1.6), f.at(0.8, 1.6), f.at(0.8, 2.8), f.at(0.2, 2.8)])} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />}
+        </Box>
+      ),
+    },
+  ];
   return (
     <g>
-      <Cylinder x={1.8} y={yb} z0={0} z1={z} r={0.55} color="#9aa3ad" />
-      <Cylinder x={1.8} y={yb} z0={z - 0.3} z1={z + 3.4} r={2.1} color="#c9d2dc" top="#e3e8ee" />
-      <Box x={px} y={yb} l={0.8} w={0.8} h={z - 1} z={1} color="#9aa3ad" />
-      <Wheel at={P(px - 1, yb + 0.7, 0.5)} r={0.5} />
-      <Box x={px} y={yb} l={2.6} w={1.4} h={0.6} z={0.5} color="#6f7787" />
-      <Wheel at={P(px + 1, yb + 0.7, 0.5)} r={0.5} />
-      {[...Array(n).keys()].map((i) => {
-        const c = RAINBOW[i % RAINBOW.length];
-        return (
-          <Box key={i} x={x0 + seg * (i + 0.5)} y={yb} l={seg * 1.02} w={2.6} h={3} z={z} color={c} top={shade(c, 1.25)}>
-            {(f) => (
-              <path d={[0.25, 0.5, 0.75].map((t) => `M${f.at(t, 0.3).join(",")}L${f.at(t, 2.7).join(",")}`).join("")} stroke={shade(c, 0.72)} strokeWidth={1.6} />
-            )}
-          </Box>
-        );
-      })}
-      <Box x={x1 + 0.9} y={yb} l={1.8} w={3.2} h={3.4} z={z - 0.2} color="#dfe5ec">
-        {(f) => <polygon points={pts([f.at(0.2, 1.6), f.at(0.8, 1.6), f.at(0.8, 2.8), f.at(0.2, 2.8)])} fill="url(#glass)" stroke={OUT} strokeWidth={1.4} />}
-      </Box>
+      <Cylinder x={px} y={py} z0={0} z1={z} r={0.55} color="#9aa3ad" />
+      {parts
+        .sort((p, q) => p.depth - q.depth)
+        .map((d) => (
+          <g key={d.key}>{d.node}</g>
+        ))}
     </g>
   );
 }
@@ -291,6 +334,8 @@ export interface IsoWorldProps {
   onPointerCancel?: React.PointerEventHandler<SVGSVGElement>;
   showProps?: boolean;
   docked?: (p: PlaneT) => boolean;
+  /** gate whose finger the scene draws itself */
+  ownBridge?: number;
   label?: string;
 }
 
@@ -321,7 +366,7 @@ const WorldContent = memo(function WorldContent({ season, items, under }: { seas
  * Camera moves only shift the painted svg with a CSS transform (GPU); it is repainted at the
  * new camera once the camera rests or the move leaves the painted area.
  */
-export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, under, className, svgRef, showProps = true, docked, label, ...handlers }: IsoWorldProps) {
+export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, under, className, svgRef, showProps = true, docked, ownBridge, label, ...handlers }: IsoWorldProps) {
   const [painted, setPainted] = useState(camera);
   const view = covers(painted, camera) ? painted : camera;
   if (view !== painted) setPainted(view);
@@ -336,12 +381,13 @@ export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, un
     const list: Drawable[] = [...drawables];
     for (let g = 0; g < 3; g++) {
       const plane = planes.find((p) => p.gate === g && p.stage === "abfertigung");
-      list.push({ key: `bridge${g}`, depth: 6 + gateY(g) - 14, node: <Bridge gate={g} docked={!!plane && (docked?.(plane) ?? true)} plane={plane?.type} /> });
+      const at = plane?.done.includes("finger") && (docked?.(plane) ?? true) ? plane.type : undefined;
+      if (g !== ownBridge) list.push({ key: `bridge${g}`, depth: bridgeDepth(g), node: <Bridge gate={g} cab={at ? bridgeDoor(g, at) : bridgeParked(g)} z={bridgeHeight(at)} /> });
       if (showProps) list.push(...propsForGate(g, season));
     }
     list.push({ key: "tower", depth: -40, node: <Tower season={season} /> });
     return list.sort((a, b) => a.depth - b.depth);
-  }, [drawables, planes, docked, showProps, season]);
+  }, [drawables, planes, docked, ownBridge, showProps, season]);
 
   const edge = `${(-(OVERSCAN - 1) * 50).toFixed(2)}%`;
   const moving = view.x !== x || view.y !== y || view.zoom !== zoom;

@@ -1,15 +1,57 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA } from "country-flag-icons/react/3x2";
+import { COUNTRIES, type CountryCode } from "@/game/data";
+import { sfx } from "@/game/sound";
 import { Icon } from "./icons";
 
-const FLAGS: Record<string, typeof DE> = { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA };
+const FLAGS: Record<CountryCode, typeof DE> = { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA };
 
-export function Flag({ code, height = 26 }: { code: string; height?: number }) {
+// Not a native popover: the top layer would escape the scaled .stage.
+export function Flag({ code, height = 26 }: { code: CountryCode; height?: number }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
   const F = FLAGS[code];
-  if (!F) return null;
+  const country = COUNTRIES[code];
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
   return (
-    <span className="flag" style={{ height, width: height * 1.5 }}>
-      <F title={code} />
+    <span className="flag-wrap" ref={ref}>
+      <button
+        type="button"
+        className="flag-btn"
+        aria-label={`Flagge von ${country.name}`}
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) sfx.click();
+          setOpen(!open);
+        }}
+      >
+        <span className="flag" style={{ height, width: height * 1.5 }}>
+          <F />
+        </span>
+      </button>
+      {open && (
+        <span className="flag-bubble" role="note">
+          <b>{country.name}</b>
+          <span>liegt in {country.continent}</span>
+          <span>
+            Dort leben etwa <span className="nowrap">{country.people}</span> Menschen.
+          </span>
+        </span>
+      )}
     </span>
   );
 }

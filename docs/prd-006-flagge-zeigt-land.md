@@ -30,7 +30,7 @@ Ein Kind tippt auf eine Flagge. Eine kleine Sprechblase an der Flagge zeigt:
 Beispiel:
 
 > **Japan**
-> liegt in Asien
+> Japan liegt in Asien.
 > Dort leben etwa 124 Millionen Menschen.
 
 **Erfolgskriterien**

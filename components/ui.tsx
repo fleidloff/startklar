@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA } from "country-flag-icons/react/3x2";
 import { COUNTRIES, type CountryCode } from "@/game/data";
 import { sfx } from "@/game/sound";
@@ -44,9 +44,11 @@ export function Flag({ code, height = 26 }: { code: CountryCode; height?: number
         </span>
       </button>
       {open && (
-        <span className="flag-bubble" role="note">
+        <span className="flag-bubble" role="note" style={{ "--tail": `${height * 0.75 + 10}px` } as CSSProperties}>
           <b>{country.name}</b>
-          <span>liegt in {country.continent}</span>
+          <span>
+            {country.name} liegt in {country.continent}.
+          </span>
           <span>
             Dort leben etwa <span className="nowrap">{country.people}</span> Menschen.
           </span>

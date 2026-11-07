@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { BaggageCart, Box, Cone, Cylinder, FaceText, OUT, Person, Plane, Tug, Wheel, ZoomLevel, type Drawable } from "./art";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { BaggageCart, Box, Cone, Cylinder, FaceText, OUT, Person, Plane, Tug, Wheel, Detail, type Drawable } from "./art";
 import { P, arc, gateY, pts, shade, viewBox, type Pt } from "@/game/iso";
 import type { Plane as PlaneT, Season } from "@/game/state";
 import { aircraft } from "@/game/data";
@@ -273,12 +273,15 @@ export function propsForGate(gate: number, season: Season): Drawable[] {
   return list;
 }
 
+type Camera = { x: number; y: number; zoom: number };
+
 export interface IsoWorldProps {
   season: Season;
-  camera: { x: number; y: number; zoom: number };
+  camera: Camera;
   planes: PlaneT[];
   drawables?: Drawable[];
-  overlay?: ReactNode;
+  /** drawn above everything; as a function it gets the zoom the picture was painted at */
+  overlay?: ReactNode | ((zoom: number) => ReactNode);
   under?: ReactNode;
   className?: string;
   svgRef?: React.Ref<SVGSVGElement>;
@@ -291,28 +294,69 @@ export interface IsoWorldProps {
   label?: string;
 }
 
-/** shared 2.5D airport. Parked/waiting planes come from state, extra things via drawables */
-export function IsoWorld({ season, camera, planes, drawables = [], overlay, under, className, svgRef, showProps = true, docked, label, ...handlers }: IsoWorldProps) {
-  const items: Drawable[] = [...drawables];
-  for (let g = 0; g < 3; g++) {
-    const plane = planes.find((p) => p.gate === g && p.stage === "abfertigung");
-    items.push({ key: `bridge${g}`, depth: 6 + gateY(g) - 14, node: <Bridge gate={g} docked={!!plane && (docked?.(plane) ?? true)} plane={plane?.type} /> });
-    if (showProps) items.push(...propsForGate(g, season));
-  }
-  items.push({ key: "tower", depth: -40, node: <Tower season={season} /> });
-  items.sort((a, b) => a.depth - b.depth);
+/** the svg is painted this much larger than the screen, so small camera moves need no repaint */
+const OVERSCAN = 1.3;
+const NONE: Drawable[] = [];
+
+/** the painted picture still fills the screen at camera c and is not scaled up enough to look blurry */
+const covers = (b: Camera, c: Camera) =>
+  c.zoom / b.zoom < 1.5 && Math.abs(c.x - b.x) + 800 / c.zoom <= (800 * OVERSCAN) / b.zoom && Math.abs(c.y - b.y) + 500 / c.zoom <= (500 * OVERSCAN) / b.zoom;
+
+const WorldContent = memo(function WorldContent({ season, items, under }: { season: Season; items: Drawable[]; under?: ReactNode }) {
   return (
-    <svg ref={svgRef} className={className} viewBox={viewBox(camera.x, camera.y, camera.zoom)} preserveAspectRatio="xMidYMid slice" role="img" aria-label={label} {...handlers}>
-      <ZoomLevel value={camera.zoom}>
-        <Patterns />
-        <Ground season={season} />
-        {under}
-        <Terminal season={season} />
-        {items.map((d) => (
-          <g key={d.key}>{d.node}</g>
-        ))}
-        {overlay}
-      </ZoomLevel>
+    <>
+      <Patterns />
+      <Ground season={season} />
+      {under}
+      <Terminal season={season} />
+      {items.map((d) => (
+        <g key={d.key}>{d.node}</g>
+      ))}
+    </>
+  );
+});
+
+/**
+ * shared 2.5D airport. Parked/waiting planes come from state, extra things via drawables.
+ * Camera moves only shift the painted svg with a CSS transform (GPU); it is repainted at the
+ * new camera once the camera rests or the move leaves the painted area.
+ */
+export function IsoWorld({ season, camera, planes, drawables = NONE, overlay, under, className, svgRef, showProps = true, docked, label, ...handlers }: IsoWorldProps) {
+  const [painted, setPainted] = useState(camera);
+  const view = covers(painted, camera) ? painted : camera;
+  if (view !== painted) setPainted(view);
+  const { x, y, zoom } = camera;
+  useEffect(() => {
+    if (x === painted.x && y === painted.y && zoom === painted.zoom) return;
+    const t = setTimeout(() => setPainted({ x, y, zoom }), 160);
+    return () => clearTimeout(t);
+  }, [x, y, zoom, painted]);
+
+  const items = useMemo(() => {
+    const list: Drawable[] = [...drawables];
+    for (let g = 0; g < 3; g++) {
+      const plane = planes.find((p) => p.gate === g && p.stage === "abfertigung");
+      list.push({ key: `bridge${g}`, depth: 6 + gateY(g) - 14, node: <Bridge gate={g} docked={!!plane && (docked?.(plane) ?? true)} plane={plane?.type} /> });
+      if (showProps) list.push(...propsForGate(g, season));
+    }
+    list.push({ key: "tower", depth: -40, node: <Tower season={season} /> });
+    return list.sort((a, b) => a.depth - b.depth);
+  }, [drawables, planes, docked, showProps, season]);
+
+  const edge = `${(-(OVERSCAN - 1) * 50).toFixed(2)}%`;
+  const style = {
+    left: edge,
+    top: edge,
+    width: `${OVERSCAN * 100}%`,
+    height: `${OVERSCAN * 100}%`,
+    transform: view.x === x && view.y === y && view.zoom === zoom ? undefined : `translate(${(view.x - x) * zoom}px, ${(view.y - y) * zoom}px) scale(${zoom / view.zoom})`,
+  };
+  return (
+    <svg ref={svgRef} className={className} style={style} viewBox={viewBox(view.x, view.y, view.zoom / OVERSCAN)} preserveAspectRatio="xMidYMid slice" role="img" aria-label={label} {...handlers}>
+      <Detail value={view.zoom >= 1}>
+        <WorldContent season={season} items={items} under={under} />
+        {typeof overlay === "function" ? overlay(view.zoom) : overlay}
+      </Detail>
     </svg>
   );
 }

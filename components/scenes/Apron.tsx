@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BeltLoader, Bus, Stairs, planeGeometry, type Drawable } from "../art";
 import { Icon } from "../icons";
 import { RoundButton } from "../ui";
@@ -116,44 +116,51 @@ export function Apron({ state, onSelect, onOpen }: Props) {
   };
   const zoomButton = (f: number) => glide({ ...camRef.current, zoom: camRef.current.zoom * f });
 
-  const drawables: Drawable[] = [];
-  const bubbles: React.ReactNode[] = [];
-  const bubbleR = 30 / cam.zoom;
+  const { drawables, marks } = useMemo(() => {
+    const drawables: Drawable[] = [];
+    const marks: (Omit<BubbleProps, "r"> & { id: string })[] = [];
+    for (const p of state.planes) {
+      const color = GATE_COLORS[p.gate];
+      const pose = standingPose(p);
+      const open = (s: Screen) => onOpen(s, p.id);
+      const select = () => onSelect(p.id);
+      let actions: BubbleProps["actions"] = [];
+      if (p.stage === "anflug") {
+        marks.push({ id: p.id, at: P(30, gateY(p.gate), 6), title: `${p.flightNo} im Anflug`, color, actions: [{ id: "tower", icon: "radar", label: "Zum Tower", color: "#2c7a52", pulse: true }], onOpen: open, onSelect: select });
+        continue;
+      }
+      if (p.stage === "einwinken") {
+        actions = [{ id: "einwinker", icon: "einwinker", label: "Einwinken", color: tool("einwinker").color, pulse: true }];
+      } else if (p.stage === "abfertigung") {
+        drawables.push(...turnaroundProps(p));
+        actions = openTasks(p, state.season).map((t) => ({ id: t, icon: t, label: tool(t).label, color: tool(t).color }));
+        if (readyForPushback(p, state.season)) actions = [{ id: "pushback", icon: "pushback", label: "Zurückschieben", color: tool("pushback").color, pulse: true }];
+      } else if (p.stage === "abflug") {
+        actions = [{ id: "start", icon: "start", label: "Start", color: tool("start").color, pulse: true }];
+      }
+      const snow = state.season === "winter" && p.stage === "abfertigung" && !p.done.includes("enteisung") ? 1 : 0;
+      const d = planeDrawable(p, pose, { snow, selected: p.id === state.selected });
+      drawables.push({
+        ...d,
+        node: (
+          <g onClick={select} style={{ cursor: "pointer" }}>
+            {d.node}
+          </g>
+        ),
+      });
+      const g = planeGeometry(pose.x, pose.y, pose.heading, p.type);
+      marks.push({ id: p.id, at: P(pose.x, pose.y, g.zc + g.r + 9), title: p.flightNo, color, actions, onOpen: open, onSelect: select });
+    }
+    return { drawables, marks };
+  }, [state, onSelect, onOpen]);
 
-  for (const p of state.planes) {
-    const color = GATE_COLORS[p.gate];
-    const pose = standingPose(p);
-    let actions: { id: Screen; icon: string; label: string; color: string; pulse?: boolean }[] = [];
-    if (p.stage === "anflug") {
-      const c = P(30, gateY(p.gate), 6);
-      bubbles.push(
-        <Bubble key={p.id} at={c} r={bubbleR} title={`${p.flightNo} im Anflug`} color={color} actions={[{ id: "tower", icon: "radar", label: "Zum Tower", color: "#2c7a52", pulse: true }]} onOpen={(s) => onOpen(s, p.id)} onSelect={() => onSelect(p.id)} />,
-      );
-      continue;
-    }
-    if (p.stage === "einwinken") {
-      actions = [{ id: "einwinker", icon: "einwinker", label: "Einwinken", color: tool("einwinker").color, pulse: true }];
-    } else if (p.stage === "abfertigung") {
-      drawables.push(...turnaroundProps(p));
-      actions = openTasks(p, state.season).map((t) => ({ id: t, icon: t, label: tool(t).label, color: tool(t).color }));
-      if (readyForPushback(p, state.season)) actions = [{ id: "pushback", icon: "pushback", label: "Zurückschieben", color: tool("pushback").color, pulse: true }];
-    } else if (p.stage === "abflug") {
-      actions = [{ id: "start", icon: "start", label: "Start", color: tool("start").color, pulse: true }];
-    }
-    const snow = state.season === "winter" && p.stage === "abfertigung" && !p.done.includes("enteisung") ? 1 : 0;
-    const d = planeDrawable(p, pose, { snow, selected: p.id === state.selected });
-    drawables.push({
-      ...d,
-      node: (
-        <g onClick={() => onSelect(p.id)} style={{ cursor: "pointer" }}>
-          {d.node}
-        </g>
-      ),
-    });
-    const g = planeGeometry(pose.x, pose.y, pose.heading, p.type);
-    const c = P(pose.x, pose.y, g.zc + g.r + 9);
-    bubbles.push(<Bubble key={p.id} at={c} r={bubbleR} title={p.flightNo} color={color} actions={actions} onOpen={(s) => onOpen(s, p.id)} onSelect={() => onSelect(p.id)} />);
-  }
+  const bubbles = (zoom: number) => (
+    <g>
+      {marks.map(({ id, ...m }) => (
+        <Bubble key={id} {...m} r={30 / zoom} />
+      ))}
+    </g>
+  );
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if ((e.target as Element).closest("[data-bubble]")) return;
@@ -177,7 +184,7 @@ export function Apron({ state, onSelect, onOpen }: Props) {
     const pz = pinch.current;
     if (pz && svg && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
-      const rect = svg.getBoundingClientRect();
+      const rect = (svg.parentElement ?? svg).getBoundingClientRect();
       const mx = rect.left + rect.width / 2;
       const my = rect.top + rect.height / 2;
       const zoom = clamp((pz.cam.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / pz.d, ZOOM_MIN, ZOOM_MAX);
@@ -213,7 +220,7 @@ export function Apron({ state, onSelect, onOpen }: Props) {
         camera={cam}
         planes={state.planes}
         drawables={drawables}
-        overlay={<g>{bubbles}</g>}
+        overlay={bubbles}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

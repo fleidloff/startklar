@@ -6,9 +6,8 @@ export const OUT = "#26303f";
 const C = Math.cos(Math.PI / 6);
 const SW = 2.4;
 
-/** camera zoom of the surrounding IsoWorld; small details are only drawn when close enough */
-export const ZoomLevel = createContext(1);
-const DETAIL_ZOOM = 1;
+/** set by IsoWorld: the camera is close enough for small details like windows and doors */
+export const Detail = createContext(true);
 
 export interface Drawable {
   key: string;
@@ -161,7 +160,7 @@ export function wingPolygon(g: ReturnType<typeof planeGeometry>, side: 1 | -1, z
 }
 
 export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, shadow = true }: PlaneProps) {
-  const detail = useContext(ZoomLevel) >= DETAIL_ZOOM;
+  const detail = useContext(Detail);
   const g = planeGeometry(x, y, heading, type, z);
   const { t, L, S, r, zc, at, wingZ } = g;
   const nose = at(L / 2, 0, zc);
@@ -320,7 +319,7 @@ export function Plane({ x, y, z = 0, heading, type, livery, snow = 0, selected, 
     <g>
       {selected && (() => {
         const c = P(x, y, 0);
-        return <ellipse cx={c[0]} cy={c[1]} rx={L * K * 0.75} ry={L * K * 0.42} fill="rgba(255,214,64,0.28)" stroke="#ffcf3a" strokeWidth={4} strokeDasharray="14 10" className="spin-dash" />;
+        return <ellipse cx={c[0]} cy={c[1]} rx={L * K * 0.75} ry={L * K * 0.42} fill="rgba(255,214,64,0.28)" stroke="#ffcf3a" strokeWidth={4} strokeDasharray="14 10" />;
       })()}
       {shadow &&
         [0.07, 0.11].map((o, i) => (

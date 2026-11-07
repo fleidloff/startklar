@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createPlane, initialState, openTasks, parseSave, reducer, type GameState } from "./state.ts";
-import { PUSHBACK_END, pushbackPose } from "./motion.ts";
+import { PUSHBACK_END, TAXIWAY_X, pushbackPose } from "./motion.ts";
+import { AIRCRAFT } from "./data.ts";
 
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -53,7 +54,12 @@ test("saves are validated and a plane waiting for take-off stays on the taxiway"
   assert.deepEqual(parseSave(JSON.stringify(old))!.planes[0].done, ["bus"], "removed tasks are dropped from old saves");
 });
 
-test("pushback ends on the taxi lane", () => {
-  const end = pushbackPose(2, "A320", PUSHBACK_END);
-  assert.ok(Math.abs(Math.sin(end.heading) + 1) < 0.05, "nose points along the lane");
+test("pushback ends on the taxiway, clear of the parked neighbours", () => {
+  const longest = Math.max(...AIRCRAFT.map((t) => t.gameLength));
+  for (const type of AIRCRAFT) {
+    const end = pushbackPose(1, type.id, PUSHBACK_END);
+    assert.ok(Math.abs(Math.sin(end.heading) + 1) < 0.05, "nose points along the taxiway");
+    assert.ok(Math.abs(end.x - TAXIWAY_X) < 0.5, "fuselage on the taxiway centre line");
+    assert.ok(end.x - type.gameSpan / 2 > 8 + longest, "wing tips clear of the tail of a parked neighbour");
+  }
 });

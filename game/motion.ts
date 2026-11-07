@@ -15,14 +15,17 @@ const cached = (key: string, build: () => Pt[]) => {
   return p;
 };
 
-/** nose path while being pushed back: out of the stand, turning tail-first onto the taxi lane */
+/** centre line of the taxiway between apron and runway */
+export const TAXIWAY_X = 80;
+
+/** nose path while being pushed back: out of the stand, turning tail-first onto the taxiway, clear of the neighbour stands */
 export const pushbackPath = (gate: number) =>
   cached(`push${gate}`, () => {
     const y = gateY(gate);
-    return [[8, y], [30, y], ...arc(30, y + 18, 18, -Math.PI / 2, 0, 14).slice(1), [48, y + 140]];
+    return [[8, y], [TAXIWAY_X - 18, y], ...arc(TAXIWAY_X - 18, y + 18, 18, -Math.PI / 2, 0, 14).slice(1), [TAXIWAY_X, y + 140]];
   });
 
-export const PUSHBACK_END = 22 + (Math.PI / 2) * 18;
+export const PUSHBACK_END = TAXIWAY_X - 18 - 8 + (Math.PI / 2) * 18;
 
 export function pushbackPose(gate: number, type: string, s: number): Pose {
   const path = pushbackPath(gate);

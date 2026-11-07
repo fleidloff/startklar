@@ -55,7 +55,7 @@ export function Pushback({ state, plane, setHint, onDone }: SceneProps) {
   };
 
   const y = gateY(plane.gate);
-  const center = P(30, y + 12);
+  const center = P(54, y + 20);
   const guide: [number, number][] = [];
   for (let t = 0; t <= PUSHBACK_END; t += 2) {
     const q = path.at(t);
@@ -78,7 +78,7 @@ export function Pushback({ state, plane, setHint, onDone }: SceneProps) {
         svgRef={svgRef}
         className="fill"
         season={state.season}
-        camera={{ x: center[0], y: center[1] - 40, zoom: 1.25 }}
+        camera={{ x: center[0], y: center[1] - 40, zoom: 1.1 }}
         planes={state.planes}
         docked={(p) => p.id !== plane.id}
         drawables={drawables}

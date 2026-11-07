@@ -105,15 +105,36 @@ export function Apron({ state, onSelect, onOpen }: Props) {
     return stopGlide;
   }, [selected?.id, selected?.gate, selected?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const zoomAt = (f: number, clientX: number, clientY: number) => {
+  const sceneRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sceneRef.current;
     const svg = svgRef.current;
-    if (!svg) return;
-    stopGlide();
-    const p = svgPoint(svg, clientX, clientY);
-    const c = camRef.current;
-    const k = c.zoom / clamp(c.zoom * f, ZOOM_MIN, ZOOM_MAX);
-    move({ x: p[0] - (p[0] - c.x) * k, y: p[1] - (p[1] - c.y) * k, zoom: c.zoom / k });
-  };
+    if (!el || !svg) return;
+    // native, non-passive: React wheel listeners are passive, so a trackpad pinch would zoom the whole page
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      stopGlide();
+      const c = camRef.current;
+      const scale = svg.getScreenCTM()?.a ?? 1;
+      const px = e.deltaMode === 1 ? 16 : 1;
+      if (e.ctrlKey || e.metaKey) {
+        const p = svgPoint(svg, e.clientX, e.clientY);
+        const k = c.zoom / clamp(c.zoom * Math.exp(-e.deltaY * px * 0.01), ZOOM_MIN, ZOOM_MAX);
+        move({ x: p[0] - (p[0] - c.x) * k, y: p[1] - (p[1] - c.y) * k, zoom: c.zoom / k });
+      } else {
+        move({ ...c, x: c.x + (e.deltaX * px) / scale, y: c.y + (e.deltaY * px) / scale });
+      }
+    };
+    const block = (e: Event) => e.preventDefault();
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("gesturestart", block);
+    el.addEventListener("gesturechange", block);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("gesturestart", block);
+      el.removeEventListener("gesturechange", block);
+    };
+  }, []);
   const zoomButton = (f: number) => glide({ ...camRef.current, zoom: camRef.current.zoom * f });
 
   const { drawables, marks } = useMemo(() => {
@@ -212,7 +233,7 @@ export function Apron({ state, onSelect, onOpen }: Props) {
   };
 
   return (
-    <div className="scene" onWheel={(e) => zoomAt(e.deltaY > 0 ? 0.92 : 1.08, e.clientX, e.clientY)}>
+    <div className="scene" ref={sceneRef}>
       <IsoWorld
         svgRef={svgRef}
         className="fill"
@@ -225,7 +246,7 @@ export function Apron({ state, onSelect, onOpen }: Props) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        label="Vorfeld mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen. Zwei Finger oder die Lupen-Knöpfe zoomen."
+        label="Vorfeld mit drei Gates. Tippe auf die runden Knöpfe über den Flugzeugen. Zwei Finger, Trackpad oder die Lupen-Knöpfe zoomen."
       />
       <div className="zoom-controls">
         <RoundButton icon="zoom-out" label="Weiter weg" color="#9ad0f0" size={78} dim={cam.zoom <= ZOOM_MIN + 0.01} onClick={() => zoomButton(1 / 1.4)} />

@@ -6,7 +6,7 @@ import { IsoWorld } from "../World";
 import { otherPlanes, servicePoints } from "./Apron";
 import { Hand } from "./Tower";
 import { Progress } from "./Pushback";
-import { aircraft } from "@/game/data";
+import { GUEST_COLORS, aircraft, colorName } from "@/game/data";
 import { isPost } from "@/game/state";
 import { capture, P, clock, dist, lerp, svgPoint, type Pt } from "@/game/iso";
 import { sfx } from "@/game/sound";
@@ -14,13 +14,16 @@ import { sfx } from "@/game/sound";
 const KINDS = ["koffer", "tasche", "truhe", "rucksack"] as const;
 const PARCELS = ["paket-s", "paket-m", "paket-l"] as const;
 const NAMES: Record<Bag["kind"], string> = { koffer: "Koffer", tasche: "Reisetasche", truhe: "Truhe", rucksack: "Rucksack", "paket-s": "Kleines Paket", "paket-m": "Paket", "paket-l": "Großes Paket" };
-const COLORS = ["#e8574a", "#4cbb6c", "#3aa3e8", "#f39a35", "#9a6ee8", "#ef6fae", "#f6c02c", "#2fb7a8"];
+const COLORS = GUEST_COLORS.map((c) => c.hex);
 const RIDE = 1.4;
 
 interface Bag {
   id: number;
   kind: (typeof KINDS)[number] | (typeof PARCELS)[number];
   color: string;
+  /** colour of the guest family this suitcase belongs to */
+  owner?: string;
+  inAt?: number;
   home: Pt;
   state: "cart" | "drag" | "ride" | "back" | "in";
   pos: Pt;
@@ -47,7 +50,9 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
       const [a, row] = slots[i < firstCart ? i : i - firstCart];
       const base = P(c.x + a, c.y, 1.0);
       const home: Pt = [base[0], base[1] - row * 26];
-      return { id: i, kind: post ? PARCELS[(i + plane.gate) % PARCELS.length] : KINDS[(i + plane.gate) % KINDS.length], color: COLORS[(i * 3 + plane.gate) % COLORS.length], home, state: "cart", pos: home, t0: 0, from: home };
+      const owner = post ? undefined : plane.guests[i];
+      const bag = { id: i, kind: post ? PARCELS[(i + plane.gate) % PARCELS.length] : KINDS[(i + plane.gate) % KINDS.length], color: COLORS[(i * 3 + plane.gate) % COLORS.length], home, state: "cart" as const, pos: home, t0: 0, from: home };
+      return owner ? { ...bag, kind: "koffer" as const, color: owner, owner } : bag;
     });
   }, [count, plane.gate, post]); // eslint-disable-line react-hooks/exhaustive-deps
   const [bags, setBags] = useState(initial);
@@ -55,15 +60,18 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
   const loaded = bags.filter((b) => b.state === "in").length;
   const animating = bags.some((b) => b.state === "ride" || b.state === "back");
   const doneRef = useRef(false);
+  const latest = bags.reduce<Bag | undefined>((a, b) => (b.state === "in" && (!a || (b.inAt ?? 0) > (a.inAt ?? 0)) ? b : a), undefined);
+  const owner = latest?.owner;
 
   useEffect(() => {
-    setHint(loaded === count ? "Frachtraum voll beladen!" : `${word} einladen! (${loaded} von ${count})`);
+    const progress = `(${loaded} von ${count})`;
+    setHint(loaded === count ? "Frachtraum voll beladen!" : owner ? `Der Koffer von Familie ${colorName(owner)} ist an Bord! ${progress}` : `${word} einladen! ${progress}`);
     if (loaded === count && !doneRef.current) {
       doneRef.current = true;
       sfx.pneumatic();
       setTimeout(onDone, 700);
     }
-  }, [loaded, count, word, onDone, setHint]);
+  }, [loaded, count, word, owner, onDone, setHint]);
 
   useEffect(() => {
     if (!animating) return;
@@ -75,7 +83,7 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
         list.map((b) => {
           if (b.state === "ride" && (t - b.t0) / 1000 > RIDE) {
             sfx.pop();
-            return { ...b, state: "in" };
+            return { ...b, state: "in", inAt: t };
           }
           if (b.state === "back" && (t - b.t0) / 1000 > 0.4) return { ...b, state: "cart", pos: b.home };
           return b;
@@ -195,7 +203,7 @@ export function Baggage({ state, plane, setHint, onDone }: SceneProps) {
                     key={b.id}
                     role="button"
                     tabIndex={b.state === "cart" ? 0 : -1}
-                    aria-label={`${NAMES[b.kind]} aufs Band legen`}
+                    aria-label={`${b.owner ? `Koffer von Familie ${colorName(b.owner)}` : NAMES[b.kind]} aufs Band legen`}
                     transform={`translate(${p[0]},${p[1]}) scale(${scale})`}
                     style={{ cursor: b.state === "cart" ? "grab" : "default" }}
                     onPointerDown={(e) => {

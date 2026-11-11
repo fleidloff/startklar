@@ -155,3 +155,36 @@ export function flightTime(km: number) {
   const mins = `${m} ${m === 1 ? "Minute" : "Minuten"}`;
   return h === 0 ? mins : m === 0 ? hours : `${hours} ${mins}`;
 }
+
+export type CarKind = "klein" | "camper" | "strom";
+
+export const CARS: Record<CarKind, { name: string; space: string; spaceName: string }> = {
+  klein: { name: "Der Kleinwagen", space: "einen kleinen Platz", spaceName: "kleiner Platz" },
+  camper: { name: "Das Wohnmobil", space: "einen großen Platz", spaceName: "großer Platz" },
+  strom: { name: "Das Elektroauto", space: "einen Platz mit Strom", spaceName: "Platz mit Strom" },
+};
+
+/** back row left to right, then front row; the two big places are double width */
+export const SPACES: CarKind[] = ["klein", "klein", "klein", "strom", "strom", "klein", "klein", "klein", "camper", "camper"];
+
+/** guest cars, their families and their suitcases share these colours */
+export const GUEST_COLORS = [
+  { hex: "#e8574a", name: "Rot" },
+  { hex: "#4cbb6c", name: "Grün" },
+  { hex: "#3aa3e8", name: "Blau" },
+  { hex: "#f39a35", name: "Orange" },
+  { hex: "#9a6ee8", name: "Lila" },
+  { hex: "#ef6fae", name: "Rosa" },
+  { hex: "#f6c02c", name: "Gelb" },
+  { hex: "#2fb7a8", name: "Türkis" },
+];
+
+export const colorName = (hex: string) => GUEST_COLORS.find((c) => c.hex === hex)?.name ?? "Grau";
+
+/** cars without a flight wear dull colours, so the guests stand out */
+export const FOREIGN_COLORS = ["#c3ccd6", "#5c6168", "#eef1f4", "#2f4a7a", "#8a929c"];
+
+/** every guest car brings two or three people; the first one carries the suitcase */
+export const familySize = (hex: string) => 2 + (Math.max(0, GUEST_COLORS.findIndex((c) => c.hex === hex)) % 2);
+
+export const guestPassengers = (guests: string[]) => guests.flatMap((color) => [...Array(familySize(color)).keys()].map((i) => ({ color, bag: i === 0 })));

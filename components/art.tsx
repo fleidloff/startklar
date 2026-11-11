@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { aircraft, type AircraftType } from "@/game/data";
+import { aircraft, type AircraftType, type CarKind } from "@/game/data";
 import { K, P, pts, shade, type Pt } from "@/game/iso";
 import { WIND_HOLD_MS, windAt } from "@/game/motion";
 
@@ -760,6 +760,67 @@ export function Tug({ x, y, heading, color = "#eef1f4" }: V & { color?: string }
   );
 }
 
+/** a car on the parking lot; parts are drawn back to front for its heading */
+/** lights: headlights on while it drives */
+export function Car({ x, y, heading, kind, color, lights = false }: V & { kind: CarKind; color: string; lights?: boolean }) {
+  const L = local(x, y, heading);
+  const camper = kind === "camper";
+  const l = camper ? 6.6 : 4.2;
+  const w = camper ? 2.4 : 1.9;
+  const toward = Math.cos(heading) + Math.sin(heading);
+  const at = (o: number) => ({ x: x + Math.cos(heading) * o, y: y + Math.sin(heading) * o, heading });
+  const glass = (f: Face, s0: number, s1: number, z0: number, z1: number) => <polygon points={windowPoly(f, s0, s1, z0, z1)} fill="url(#glass)" stroke={OUT} strokeWidth={1.3} />;
+  const lamps = (f: Face, z: number) =>
+    isFront(f) ? [0.15, 0.85].map((s) => <circle key={s} cx={f.at(s, z)[0]} cy={f.at(s, z)[1]} r={2.2} fill="#fff7d0" stroke={OUT} strokeWidth={1} />) :
+    isBack(f) ? [0.12, 0.88].map((s) => <circle key={s} cx={f.at(s, z)[0]} cy={f.at(s, z)[1]} r={1.8} fill="#e8574a" stroke={OUT} strokeWidth={1} />) : null;
+  const bolt = (f: Face) => <polygon points={pts([[0.5, 0.68], [0.42, 0.36], [0.49, 0.4], [0.44, 0.08], [0.58, 0.46], [0.51, 0.42], [0.57, 0.68]].map(([s, z]) => f.at(s, z)))} fill="#3cf06e" stroke={OUT} strokeWidth={1} />;
+  const parts: { o: number; z: number; node: ReactNode }[] = camper
+    ? [
+        { o: 0, z: 0, node: <Box {...at(0)} l={6.6} w={2.4} h={1} z={0.4} color={color}>{(f) => lamps(f, 0.5)}</Box> },
+        { o: -0.7, z: 1, node: <Box {...at(-0.7)} l={5.2} w={2.4} h={1.5} z={1.4} color="#f2f4f6">{(f) => (isBack(f) ? glass(f, 0.3, 0.7, 0.5, 1.1) : isFront(f) ? null : <g>{glass(f, 0.12, 0.36, 0.55, 1.15)}{glass(f, 0.6, 0.84, 0.55, 1.15)}</g>)}</Box> },
+        { o: 2.6, z: 1, node: <Box {...at(2.6)} l={1.4} w={2.3} h={0.8} z={1.4} color={color}>{(f) => (isFront(f) ? glass(f, 0.08, 0.92, 0.1, 0.7) : isBack(f) ? null : glass(f, 0.15, 0.8, 0.15, 0.7))}</Box> },
+        { o: 2.6, z: 2, node: <Box {...at(2.6)} l={1.4} w={2.4} h={0.7} z={2.2} color="#f2f4f6">{(f) => (isFront(f) ? glass(f, 0.3, 0.7, 0.2, 0.5) : null)}</Box> },
+      ]
+    : [
+        { o: 0, z: 0, node: <Box {...at(0)} l={4.2} w={1.9} h={0.75} z={0.35} color={color}>{(f) => lamps(f, 0.45) ?? (kind === "strom" ? bolt(f) : <polyline points={pts([f.at(0.5, 0.1), f.at(0.5, 0.7)])} stroke={shade(color, 0.6)} strokeWidth={1.4} fill="none" />)}</Box> },
+        { o: -0.25, z: 1, node: <Box {...at(-0.25)} l={2.4} w={1.7} h={0.75} z={1.1} color={color} top={shade(color, 1.2)}>{(f) => (isFront(f) ? glass(f, 0.08, 0.92, 0.08, 0.66) : isBack(f) ? glass(f, 0.15, 0.85, 0.12, 0.62) : <g>{glass(f, 0.08, 0.46, 0.1, 0.62)}{glass(f, 0.54, 0.92, 0.1, 0.62)}</g>)}</Box> },
+      ];
+  return (
+    <g>
+      <GroundShadow x={x} y={y} heading={heading} l={l} w={w} />
+      {wheels(L, l / 2 - (camper ? 1.2 : 0.85), w / 2 - 0.05, 0.45)}
+      {[...parts].sort((a, b) => (a.z === 0 ? -1e9 : a.o * toward) - (b.z === 0 ? -1e9 : b.o * toward) || a.z - b.z).map((p, i) => <g key={i}>{p.node}</g>)}
+      {lights && (
+        <Lamp>
+          <polygon points={pts([L(l / 2, -w / 2 + 0.2, 0.4), L(l / 2, w / 2 - 0.2, 0.4), L(l / 2 + 9, 3, 0), L(l / 2 + 9, -3, 0)])} fill="#fff3c0" opacity={0.3} />
+        </Lamp>
+      )}
+    </g>
+  );
+}
+
+/** small orange tractor with a blade that pushes snow off the parking places */
+export function SnowPlow({ x, y, heading }: V) {
+  const L = local(x, y, heading);
+  const at = (o: number) => ({ x: x + Math.cos(heading) * o, y: y + Math.sin(heading) * o, heading });
+  const blade = <Box {...at(1.9)} l={0.35} w={3} h={0.9} z={0.15} color="#f6c02c">{(f) => (isFront(f) ? <polygon points={windowPoly(f, 0.04, 0.96, 0.1, 0.8)} fill="url(#warn)" stroke={OUT} strokeWidth={1} /> : null)}</Box>;
+  const front = Math.cos(heading) + Math.sin(heading) > 0;
+  return (
+    <g>
+      <GroundShadow x={x} y={y} heading={heading} l={3.4} w={1.8} />
+      {!front && blade}
+      {wheels(L, 0.8, 0.85, 0.55)}
+      <Box {...at(0)} l={2.6} w={1.6} h={0.9} z={0.4} color="#f39a35" />
+      <Box {...at(-0.4)} l={1.3} w={1.4} h={1.2} z={1.3} color="#f39a35" top="#f2f4f6">
+        {(f) => <polygon points={windowPoly(f, 0.12, 0.88, 0.25, 0.95)} fill="url(#glass)" stroke={OUT} strokeWidth={1.3} />}
+      </Box>
+      {front && blade}
+      <circle cx={L(-0.4, 0, 2.7)[0]} cy={L(-0.4, 0, 2.7)[1]} r={2.6} fill="#ffa62b" stroke={OUT} strokeWidth={1.1} className="blink" />
+      <Glow at={L(-0.4, 0, 2.7)} r={2.2} color={LIGHT.amber} className="blink" />
+    </g>
+  );
+}
+
 const BAG_COLORS = ["#e8574a", "#4cbb6c", "#3aa3e8", "#f39a35", "#9a6ee8", "#ef6fae", "#f6c02c"];
 
 export function BaggageCart({ x, y, heading, bags = 3, seed = 0 }: V & { bags?: number; seed?: number }) {
@@ -963,16 +1024,21 @@ export function Person({ at, scale = 1, seed = 0, pose = "stand" }: { at: Pt; sc
   );
 }
 
-export function Passenger({ at, seed = 0 }: { at: Pt; seed?: number }) {
+/** color: shirt and suitcase of a guest family; bag: false for the family members without the suitcase */
+export function Passenger({ at, seed = 0, color, bag = true }: { at: Pt; seed?: number; color?: string; bag?: boolean }) {
   const colors = ["#e8574a", "#3aa3e8", "#4cbb6c", "#9a6ee8", "#ef6fae", "#f39a35"];
   const skin = SKIN[(seed + 2) % SKIN.length];
   return (
     <g transform={`translate(${at[0]},${at[1]}) scale(1.15)`}>
       <ellipse cx={0} cy={0} rx={6.5} ry={2.6} fill="rgba(30,40,60,0.2)" />
       <rect x={-4} y={-10} width={8} height={10} rx={2} fill="#3d4a63" stroke={OUT} strokeWidth={1.3} />
-      <rect x={-5} y={-22} width={10} height={13} rx={4} fill={colors[seed % colors.length]} stroke={OUT} strokeWidth={1.3} />
-      <rect x={5} y={-12} width={6} height={7} rx={1.5} fill={colors[(seed + 3) % colors.length]} stroke={OUT} strokeWidth={1.2} />
-      <path d="M6.5,-12 v-1.6 h3 v1.6" fill="none" stroke={OUT} strokeWidth={1.1} />
+      <rect x={-5} y={-22} width={10} height={13} rx={4} fill={color ?? colors[seed % colors.length]} stroke={OUT} strokeWidth={1.3} />
+      {bag && (
+        <g>
+          <rect x={5} y={-12} width={6} height={7} rx={1.5} fill={color ?? colors[(seed + 3) % colors.length]} stroke={OUT} strokeWidth={1.2} />
+          <path d="M6.5,-12 v-1.6 h3 v1.6" fill="none" stroke={OUT} strokeWidth={1.1} />
+        </g>
+      )}
       <circle cx={0} cy={-28} r={5.6} fill={skin} stroke={OUT} strokeWidth={1.3} />
       <path d="M-5.6,-28.5 q-0.3,-6 5.6,-6 q5.9,0 5.6,6 q-2.4,-2.8 -5.6,-2.6 q-3.2,-0.2 -5.6,2.6 z" fill={HAIR[seed % HAIR.length]} stroke={OUT} strokeWidth={1.1} strokeLinejoin="round" />
       <circle cx={-1.9} cy={-28} r={0.85} fill={OUT} />

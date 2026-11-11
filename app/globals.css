@@ -336,6 +336,10 @@ text {
   border-radius: 16px;
 }
 
+.radar-btn.active {
+  box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.9), 0 0 26px 10px rgba(255, 190, 60, 0.8);
+}
+
 /* ---------- tower clock & pause ---------- */
 
 .tower-clock {

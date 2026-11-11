@@ -4,7 +4,7 @@ import { COUNTRIES, type CountryCode } from "@/game/data";
 import { sfx } from "@/game/sound";
 import { Icon } from "./icons";
 
-const FLAGS: Record<CountryCode, typeof DE> = { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA };
+export const FLAGS: Record<CountryCode, typeof DE> = { AE, AR, AT, AU, BR, CA, CH, CN, DE, EG, ES, FR, GB, IN, IS, IT, JP, KE, MX, NO, TH, TR, US, ZA };
 
 // Not a native popover: the top layer would escape the scaled .stage.
 export function Flag({ code, height = 26 }: { code: CountryCode; height?: number }) {
@@ -78,6 +78,7 @@ export function RoundButton({ icon, label, color, onClick, active, dim, badge, s
       style={{ width: size, height: size, background: color }}
       onClick={onClick}
       aria-label={label}
+      aria-current={active || undefined}
       title={label}
     >
       <Icon name={icon} size={size * 0.62} />

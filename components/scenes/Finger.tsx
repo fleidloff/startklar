@@ -7,6 +7,7 @@ import { otherPlanes, turnaroundProps } from "./Apron";
 import { Hand } from "./Tower";
 import { P, capture, clamp, clock, dist, lerp, makePath, svgPoint, unproject, type Pt } from "@/game/iso";
 import { sfx } from "@/game/sound";
+import { guestPassengers } from "@/game/data";
 
 const PASSENGERS = 8;
 const SNAP = 3;
@@ -97,6 +98,7 @@ export function FingerGame({ state, plane, setHint, onDone }: SceneProps) {
   };
 
   const people: Drawable[] = [];
+  const guests = guestPassengers(plane.guests);
   if (phase === "board") {
     const zDock = bridgeHeight(plane.type);
     const end: Pt = [door[0] - 0.9, door[1]];
@@ -115,7 +117,7 @@ export function FingerGame({ state, plane, setHint, onDone }: SceneProps) {
         depth: bridgeDepth(plane.gate) + 0.01 * (i + 1),
         node: (
           <g transform={`translate(${sx},${sy}) scale(0.5) translate(${-sx},${-sy})`}>
-            <Passenger at={[sx, sy]} seed={i} />
+            <Passenger at={[sx, sy]} seed={i} color={guests[i]?.color} bag={guests[i]?.bag ?? true} />
           </g>
         ),
       });

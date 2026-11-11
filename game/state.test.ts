@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NIGHT_MS, arrivals, clockMinutes, createPlane, initialState, isLongHaul, isPost, mayArrive, openTasks, parseSave, pauseOver, readyForPushback, reducer, roundOver, type GameState } from "./state.ts";
+import { LOT_FULL_MS, NIGHT_MS, arrivals, clockMinutes, createPlane, guestFlight, initialState, isLongHaul, isPost, mayArrive, nextCar, openTasks, parseSave, pauseOver, readyForPushback, reducer, roomFor, roundOver, visitFree, type GameState } from "./state.ts";
 import { PUSHBACK_END, TAXIWAY_X, WIND_HOLD_MS, WIND_TURN_MS, pushbackPose, windAt } from "./motion.ts";
-import { AIRCRAFT, destination, flightTime } from "./data.ts";
+import { AIRCRAFT, SPACES, destination, flightTime } from "./data.ts";
 
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
@@ -196,4 +196,107 @@ test("the wind holds for a while, then turns smoothly to a new direction", () =>
   }
   const directions = [...Array(10).keys()].map((i) => windAt(start + i * WIND_HOLD_MS + WIND_TURN_MS).angle);
   assert.ok(directions.some((a) => gap(a, directions[0]) > 0.5), "the direction changes now and then");
+});
+
+const park = (s: GameState, spot: number, plane: string, color: string) =>
+  reducer(s, { type: "park", spot, kind: SPACES[spot], color, plane, at: spot + 1 });
+
+test("a parked guest car gives its flight its one guest", () => {
+  let s = initialState();
+  const free = SPACES.map((_, i) => i).filter((i) => !s.lot[i].car && SPACES[i] === "klein");
+  s = park(s, free[0], "p1", "#e8574a");
+  assert.deepEqual(s.planes.find((p) => p.id === "p1")!.guests, ["#e8574a"]);
+  assert.equal(s.lot[free[0]].car!.plane, "p1");
+  assert.equal(park(s, free[1], "p1", "#4cbb6c"), s, "one guest per flight");
+  assert.equal(reducer(s, { type: "park", spot: 9, kind: "klein", color: "#4cbb6c", plane: "p1", at: 9 }), s, "a small car does not fit a big place");
+  assert.equal(park(s, free[0], "p1", "#4cbb6c"), s, "the place is taken");
+});
+
+test("cars come only for passenger flights with room and not ready for take-off", () => {
+  let s = initialState();
+  assert.equal(guestFlight(s)!.id, "p1", "the plane that came first");
+  s = { ...s, planes: s.planes.map((p) => (p.id === "p1" ? { ...p, guests: ["#e8574a"] } : p)) };
+  assert.equal(guestFlight(s)!.id, "p2", "then the next flight without a guest");
+  s = { ...s, planes: s.planes.map((p) => ({ ...p, guests: ["#e8574a"] })) };
+  assert.equal(guestFlight(s), undefined);
+  assert.equal(nextCar(s, Math.random)!.plane, null, "then a visitor comes");
+  assert.equal(nextCar({ ...s, planes: [] }, Math.random), null, "no plane, no car");
+  s = { ...initialState(), planes: initialState().planes.map((p) => ({ ...p, type: "B737F" })) };
+  assert.equal(guestFlight(s), undefined, "the post plane has no passengers");
+  s = { ...initialState(), planes: initialState().planes.map((p) => ({ ...p, stage: "abflug" as const })) };
+  assert.equal(guestFlight(s), undefined, "too late once the plane is pushed back");
+});
+
+test("a full lot makes room: a car without a flight leaves first, a waiting flight's car never", () => {
+  let s = initialState();
+  s = { ...s, planes: [...s.planes, { ...s.planes[0], id: "p3", gate: 1 }] };
+  const smalls = SPACES.map((_, i) => i).filter((i) => SPACES[i] === "klein");
+  const empty = smalls.filter((i) => !s.lot[i].car);
+  s = park(s, empty[0], "p1", "#e8574a");
+  s = park(s, empty[1], "p2", "#4cbb6c");
+  s = park(s, empty[2], "p3", "#3aa3e8");
+  const room = roomFor(s, "klein")!;
+  assert.equal(room.leave, true);
+  assert.equal(s.lot[room.spot].car!.plane, null);
+  assert.equal(reducer(s, { type: "leave", spot: empty[0] }), s, "the guest of a waiting flight stays");
+  s = reducer(s, { type: "leave", spot: room.spot });
+  assert.equal(s.lot[room.spot].car, null);
+
+  s = park(initialState(), 9, "p1", "#e8574a");
+  s = reducer(s, { type: "leave", spot: 8 });
+  s = park(s, 8, "p2", "#e8574a");
+  assert.equal(roomFor(s, "camper"), null, "both big places belong to waiting flights");
+  for (let i = 0; i < 20; i++) assert.notEqual(nextCar(s, Math.random)?.kind, "camper", "then no camper comes");
+});
+
+test("a visit starts with 1 to 3 free places and 3 cars fill the lot", () => {
+  for (const r of [0, 0.5, 0.99]) {
+    const rnd = () => r;
+    let s = park(initialState(), 1, "p1", "#e8574a");
+    s = reducer(s, { type: "visit", free: visitFree(s, rnd) });
+    const free = s.lot.filter((x) => !x.car).length;
+    assert.ok(free >= 1 && free <= 3);
+    assert.equal(s.lot[1].car!.plane, "p1", "the guest of a waiting flight stays");
+    for (let n = 0; n < 3; n++) {
+      const car = nextCar(s, rnd, 100)!;
+      const room = roomFor(s, car.kind, 100)!;
+      if (room.leave) s = reducer(s, { type: "leave", spot: room.spot });
+      s = reducer(s, { type: "park", spot: room.spot, kind: car.kind, color: car.color, plane: car.plane, at: 100 + n });
+    }
+    assert.equal(s.lot.filter((x) => !x.car).length, 0, `full after 3 cars, ${free} free at the start`);
+  }
+  let s = park(initialState(), 9, "p1", "#e8574a");
+  s = reducer(s, { type: "visit", free: [8] });
+  s = reducer(s, { type: "park", spot: 8, kind: "camper", color: "#5c6168", plane: null, at: 100 });
+  assert.equal(roomFor(s, "camper", 100), null, "the camper parked on this visit stays");
+  for (let i = 0; i < 20; i++) assert.notEqual(nextCar(s, Math.random, 100)!.kind, "camper");
+});
+
+test("from minute 17 the lot stays full and no car comes", () => {
+  let s = initialState();
+  s = { ...s, round: { ...s.round, played: LOT_FULL_MS } };
+  assert.deepEqual(visitFree(s, Math.random), []);
+  s = reducer(s, { type: "visit", free: [] });
+  assert.equal(s.lot.filter((x) => !x.car).length, 0);
+  assert.equal(nextCar(s, Math.random), null);
+});
+
+test("snow blocks a place until it is cleared", () => {
+  let s = reducer(initialState(), { type: "season", season: "winter" });
+  const spot = s.lot.findIndex((x, i) => !x.car && SPACES[i] === "klein");
+  assert.equal(s.lot[spot].snow, true);
+  assert.equal(park(s, spot, "p1", "#e8574a"), s);
+  s = reducer(s, { type: "clear", spot });
+  s = park(s, spot, "p1", "#e8574a");
+  assert.equal(s.lot[spot].car!.plane, "p1");
+  assert.equal(reducer(s, { type: "season", season: "sommer" }).lot.some((x) => x.snow), false);
+});
+
+test("an old save without a parking lot loads", () => {
+  const old = JSON.parse(JSON.stringify(initialState()));
+  delete old.lot;
+  for (const p of old.planes) delete p.guests;
+  const s = parseSave(JSON.stringify(old))!;
+  assert.deepEqual(s.lot, initialState().lot);
+  assert.deepEqual(s.planes.map((p) => p.guests), [[], []]);
 });

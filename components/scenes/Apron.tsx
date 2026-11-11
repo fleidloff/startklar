@@ -9,7 +9,7 @@ import { capture, P, clamp, gateY, svgPoint } from "@/game/iso";
 import { PUSHBACK_END, pushbackPose } from "@/game/motion";
 import { openTasks, readyForPushback, type GameState, type Plane } from "@/game/state";
 
-export type Screen = "title" | "vorfeld" | "tower" | "weltkarte" | ToolId;
+export type Screen = "title" | "vorfeld" | "tower" | "weltkarte" | "parkplatz" | ToolId;
 
 interface Props {
   state: GameState;
@@ -69,7 +69,7 @@ const focus = (p?: Plane): Cam => {
 
 const fit = (c: Cam): Cam => ({ x: clamp(c.x, -1400, 1700), y: clamp(c.y, -300, 1500), zoom: clamp(c.zoom, ZOOM_MIN, ZOOM_MAX) });
 
-const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+export const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function Apron({ state, onSelect, onOpen }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);

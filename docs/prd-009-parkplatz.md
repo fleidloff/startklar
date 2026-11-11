@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Entwurf, noch nicht umgesetzt |
+| Status | Umgesetzt |
 | Stand | 11. November 2026 |
 | Anlass | Wunsch: Ein Parkplatz, auf dem ständig Autos ankommen. Das Kind öffnet die Schranke und parkt die Autos. Die Fluggäste aus den Autos fliegen später mit. |
 | Betroffene Dateien | `game/data.ts`, `game/state.ts`, `game/state.test.ts`, `components/art.tsx`, `components/icons.tsx`, `components/scenes/Parking.tsx` (neu), `components/scenes/Apron.tsx`, `components/Game.tsx`, `components/scenes/BusGame.tsx`, `components/scenes/Finger.tsx`, `components/scenes/Baggage.tsx` |
@@ -44,7 +44,8 @@ Der Parkplatz ist freiwillig. Kein Flugzeug wartet auf ein geparktes Auto.
 | Parkplatz | Die neue Szene. Ein Platz mit Schranke, 10 Parkplätzen und dem Eingang des Terminals. |
 | Stellplatz | Ein einzelner Platz für ein Auto. Ein Zeichen auf dem Boden zeigt, für welches Auto er ist. |
 | Gast | Ein Auto mit Familie, das zu einem Flug gehört. Ein Gast hat eine Farbe. |
-| Fremdes Auto | Ein Auto ohne Flug. Es steht nur da, damit der Parkplatz voll aussieht. |
+| Fremdes Auto | Ein Auto ohne Flug. Die Leute darin holen jemanden ab. |
+| Besuch | Ein Mal auf dem Parkplatz: vom Öffnen der Szene bis zum Verlassen. |
 
 ## 5. Anforderungen
 
@@ -55,7 +56,7 @@ Die Umsetzung hat zwei Stufen. Stufe 1 ist für sich spielbar. Stufe 2 baut dara
 #### Anforderung 1: Weg zum Parkplatz
 
 - In der rechten Leiste ist ein neuer runder Knopf „Parkplatz“ mit einem Auto. Er steht unter dem Knopf „Weltkarte“.
-- Der Knopf führt zur Szene Parkplatz. Der Knopf „Zurück zum Vorfeld“ führt zurück.
+- Der Knopf führt zur Szene Parkplatz. Der Knopf „Vorfeld“ führt zurück.
 - Der Knopf pulsiert nicht.
 - Die Hilfe hat eine neue Zeile: „Parkplatz: Öffne die Schranke und parke die Autos. Die Familien fliegen mit!“
 
@@ -75,17 +76,22 @@ Die Umsetzung hat zwei Stufen. Stufe 1 ist für sich spielbar. Stufe 2 baut dara
 | Strom | Stecker mit Ladesäule | 2 | Elektroauto |
 
 - Die drei Autos sehen deutlich verschieden aus. Das Elektroauto hat einen grünen Blitz an der Seite.
+- Neben der Einfahrt steht ein Schild. Es verdeckt weder Schranke noch Ticketautomat noch Straße. Es zeigt grün „FREI 2“ mit der Zahl der freien Plätze. Ist kein Platz frei, zeigt es rot „BESETZT“.
 
 #### Anforderung 3: Ein Auto kommt
 
-- Ein Auto kommt, wenn ein Flug Gäste haben kann. Das ist ein Flug mit Fluggästen, der noch nicht zum Start bereit ist. Er hat weniger als 3 Gäste.
-- Das Postflugzeug hat keine Fluggäste. Für Postflüge kommen keine Autos.
-- Das Auto gehört zu dem Flug mit den wenigsten Gästen. Bei Gleichstand zu dem Flug, der zuerst da war.
+- Öffnet das Kind den Parkplatz, sind 1 bis 3 Plätze frei. Alle anderen Plätze sind besetzt. Während das Kind weg war, sind Autos gekommen und gegangen.
+- Bei jedem Besuch kommen genau 3 Autos nacheinander. Danach ist der Parkplatz voll.
+- 2 Sekunden nach dem dritten Parken kommt das Lob „Parkplatz voll!“ mit dem Knopf „Zum Vorfeld“. Die Leiste sagt: „Der Parkplatz ist voll! Jetzt warten die Flugzeuge auf dich.“
+- Ab Minute 17 der Runde (Spielzeit aus PRD 007) bleibt der Parkplatz voll. Beim Öffnen ist kein Platz frei, und kein Auto kommt. Es gibt kein Lob. So kann sich das Kind vor dem Mittag um die Flugzeuge kümmern. Nach der Pause beginnt eine neue Runde, und die Autos kommen wieder.
+- Ein Flug kann einen Gast haben, wenn er Fluggäste hat, noch nicht zum Start bereit ist und noch keinen Gast hat. Jeder Flug hat höchstens einen Gast.
+- Das Postflugzeug hat keine Fluggäste. Für Postflüge kommen keine Gäste.
+- Kann ein Flug einen Gast haben, ist das Auto ein Gast. Es gehört zu dem Flug ohne Gast, der zuerst da war.
+- Sonst ist das Auto ein fremdes Auto. Es hat keine Sprechblase. Nach dem Parken geht eine Person ins Terminal. Die Leiste sagt: „Gut geparkt! Der Besuch holt jemanden vom Flugzeug ab.“
 - Es wartet immer höchstens ein Auto an der Schranke.
 - Das nächste Auto fährt 2 Sekunden nach dem letzten Parken vor.
-- Über dem Auto ist eine Sprechblase mit der Flagge des Ziels und der Flugnummer.
+- Über einem Gast ist eine Sprechblase mit der Flagge des Ziels und der Flugnummer.
 - Das Banner zeigt links den Flug wie in den Mini-Spielen: „Flug LH 204 nach Berlin (BER)“ mit Flagge.
-- Kein Flug kann Gäste haben: Kein Auto kommt. Die Leiste sagt: „Alle Gäste sind da. Gute Reise!“
 - In der Pause aus PRD 007 sind keine Flugzeuge da. Darum kommt auch kein Auto. Die Leiste zeigt den Text der Pause wie überall.
 
 #### Anforderung 4: Schranke
@@ -107,23 +113,25 @@ Die Umsetzung hat zwei Stufen. Stufe 1 ist für sich spielbar. Stufe 2 baut dara
 #### Anforderung 6: Die Familie geht ins Terminal
 
 - Das Auto steht. 2 oder 3 Fluggäste steigen aus. Einer trägt einen Koffer in der Farbe des Autos.
-- Sie gehen zum Eingang des Terminals und verschwinden darin.
+- Sie gehen über den Fußweg zum Eingang des Terminals und verschwinden darin. Links und rechts außen neben den Reihen ist je ein Fußweg. Er führt bis zum Gehweg vor dem Terminal. Die Fußgänger gehen nie über die Fahrspur, auf der die Autos fahren.
 - Die Leiste sagt: „Familie Rot fliegt nach Berlin!“ Die Farbe im Namen ist die Farbe des Autos.
-- Der Flug hat jetzt einen Gast mehr.
+- Der Flug hat jetzt seinen Gast.
 - Das Kind kann schon das nächste Auto holen, während die Familie noch geht.
 
 #### Anforderung 7: Platz schaffen
 
-- Die Art des Autos ist zufällig. Möglich ist nur eine Art, für die ein Platz frei ist oder frei werden kann. Beispiel: Beide großen Plätze sind von Gästen wartender Flüge belegt. Dann kommt kein Wohnmobil.
-- Kommt ein Auto, gibt es immer mindestens einen freien Stellplatz, der passt.
-- Ist kein passender Platz frei, fährt vorher ein anderes Auto vom passenden Platz weg. Das ist zuerst ein fremdes Auto, dann das Auto des ältesten Gasts eines Flugs, der schon gestartet ist.
+- Ist ein Platz frei, passt das Auto zu einem freien Platz. So füllt sich der Parkplatz.
+- Ist kein Platz frei, fährt vorher ein anderes Auto weg, und das neue Auto passt auf dessen Platz. Bei 1 freien Platz am Anfang fahren also 2 Autos weg, bei 3 freien Plätzen keins.
+- Möglich ist nur eine Art, für die ein Platz frei ist oder frei werden kann. Beispiel: Beide großen Plätze sind von Gästen wartender Flüge belegt. Dann kommt kein Wohnmobil.
+- Das wegfahrende Auto ist zuerst ein fremdes Auto, dann das Auto des ältesten Gasts eines Flugs, der schon gestartet ist.
 - Das Auto fährt hinten auf der anderen Seite der Schranke hinaus. Das Kind muss nichts tun.
 - Autos von Flügen, die noch da sind, fahren nie weg.
+- Autos, die das Kind bei diesem Besuch geparkt hat, fahren nie weg.
 
 #### Anforderung 8: Farben der Gäste
 
 - Jeder Gast hat eine Farbe aus der Liste der Koffer-Farben im Gepäckspiel.
-- Zwei Gäste desselben Flugs haben nie dieselbe Farbe.
+- Zwei Gäste von Flügen, die gerade da sind, haben nie dieselbe Farbe.
 - Jede Farbe hat einen Namen für die Leiste und für Bildschirmleser, zum Beispiel „Rot“, „Blau“, „Grün“.
 
 #### Anforderung 9: Nacht
@@ -148,12 +156,15 @@ Die Umsetzung hat zwei Stufen. Stufe 1 ist für sich spielbar. Stufe 2 baut dara
 - Alte Spielstände laden ohne Änderung. Ihr Parkplatz beginnt wie ein neuer. Ihre Flüge haben keine Gäste.
 
 **Abnahme:** Tests in `game/state.test.ts` prüfen:
-- Ein geparktes Auto gibt seinem Flug einen Gast mehr.
-- Ein Flug mit 3 Gästen bekommt kein Auto mehr. Ein Postflug bekommt nie eines.
+- Ein geparktes Auto gibt seinem Flug seinen Gast.
+- Ein Flug mit einem Gast bekommt kein Auto mehr. Ein Postflug bekommt nie eines.
 - Ein Auto auf einem falschen Stellplatz ändert nichts.
 - Ist kein passender Platz frei, macht das fremde Auto Platz, nicht das Auto eines wartenden Flugs.
 - Sind beide großen Plätze von Gästen wartender Flüge belegt, kommt kein Wohnmobil.
 - Ein alter Spielstand ohne Parkplatz lädt.
+- Ein Besuch beginnt mit 1 bis 3 freien Plätzen. Nach 3 Autos ist der Parkplatz voll. Ein Auto, das bei diesem Besuch geparkt wurde, fährt nicht weg.
+- Ab Minute 17 bleibt der Parkplatz voll, und kein Auto kommt.
+- Kann kein Flug einen Gast haben, kommt ein fremdes Auto. Ohne Flugzeug kommt kein Auto.
 
 ### Stufe 2
 
@@ -173,8 +184,8 @@ Die Umsetzung hat zwei Stufen. Stufe 1 ist für sich spielbar. Stufe 2 baut dara
 #### Anforderung 14: Schnee
 
 - Im Winter liegt Schnee auf allen freien Stellplätzen. Auf einem Platz mit Schnee kann kein Auto parken.
-- Neben der Fahrspur steht ein kleiner Schneepflug. Das Kind zieht ihn über einen Stellplatz. Der Schnee ist dann weg.
-- Ein geräumter Platz bleibt frei von Schnee, bis der Sommer kommt.
+- In der leeren Ecke hinter der hinteren Reihe steht ein kleiner Schneepflug. Das Kind zieht ihn über einen Stellplatz. Der Schnee ist dann weg.
+- Bei jedem Besuch im Winter liegt neuer Schnee auf den freien Plätzen.
 - Ein Auto fährt weg und macht Platz: Der Platz darunter ist frei von Schnee.
 - Sind alle passenden Plätze voll Schnee, sagt die Leiste: „Erst Schnee räumen!“ Ein passender Platz blinkt.
 - Der Schneepflug ist mit der Tastatur bedienbar: Die verschneiten Plätze sind dann Knöpfe „Schnee räumen auf Platz 3“.
@@ -201,7 +212,9 @@ Alle Prüfungen mit Ton aus. Nur die Hupe einmal mit Ton an prüfen.
 - Den Parkplatz über die rechte Leiste öffnen und zum Vorfeld zurückgehen.
 - Ein Auto mit Schranke und Ziehen auf den passenden Platz bringen. Die Familie geht ins Terminal.
 - Ein Wohnmobil auf einen kleinen Platz ziehen. Es rollt zurück, und die Leiste nennt den passenden Platz.
-- Für einen Flug 3 Autos parken. Danach kommt für diesen Flug kein Auto mehr.
+- Den Parkplatz öffnen. 3 Autos parken. Danach zeigt das Schild „BESETZT“, das Lob erscheint, und kein Auto kommt mehr. Den Parkplatz neu öffnen: Wieder sind 1 bis 3 Plätze frei.
+- Nach Minute 17 den Parkplatz öffnen. Er ist voll, und kein Auto kommt.
+- Die Familien gehen auf den Fußwegen außen, nicht über die Fahrspur.
 - Ein Postflugzeug abwarten. Für den Postflug kommt kein Auto.
 - So lange parken, bis kein passender Platz mehr frei ist. Ein fremdes Auto fährt weg.
 - In der Pause den Parkplatz öffnen. Es kommt kein Auto.
@@ -220,5 +233,9 @@ Alle Prüfungen mit Ton aus. Nur die Hupe einmal mit Ton an prüfen.
 - Das Auto wird gezogen, nicht gelenkt. Lenken ist auf einem kleinen Bildschirm für kleine Kinder zu schwer.
 - Die Plätze passen nur genau zu ihrem Auto, auch wenn ein Kleinwagen in Wirklichkeit auf einen großen Platz passt. Die klare Regel ist leichter zu verstehen.
 - Gepäckwagen zum Einsammeln gibt es nicht. Sie haben keine Wirkung auf das Spiel.
-- Höchstens 3 Gäste pro Flug. So bleibt Zeit für die Arbeit an den Flugzeugen.
+- Ein Gast pro Flug und 3 Autos pro Besuch. Mit 3 Gästen pro Flug war der Parkplatz nie fertig. Mit nur einem Auto pro Flug war er beim Öffnen oft schon fertig. Jetzt hat jeder Besuch etwas zu tun und ein klares Ende: Der Parkplatz ist voll.
+- Fremde Autos füllen die Besuche auf, wenn kein Flug einen Gast haben kann. Gäste kommen immer zuerst.
+- Eine Abflugtafel auf dem Parkplatz war zu viel. Das Schild „FREI / BESETZT“ zeigt genug.
 - Der Parkplatz ist eine eigene Szene und nicht auf dem Vorfeld. Das schützt das Ziel von 60 Bildern pro Sekunde auf dem Vorfeld.
+- Ein Tipp auf einen freien passenden Platz parkt das Auto auch. Das ist derselbe Weg wie mit der Tastatur und hilft Kindern, die noch nicht ziehen können.
+- Geparkte Autos haben bei Nacht kein Licht an. Nur Autos, die fahren, haben Scheinwerfer.

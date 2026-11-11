@@ -86,6 +86,16 @@ const ICONS: Record<string, ReactNode> = {
       <line x1={32} y1={47} x2={44} y2={47} />
     </g>
   ),
+  car: (
+    <g {...s}>
+      <path d="M8,40 v-8 l6,-2 l6,-10 h22 l8,10 l8,2 v8 z" fill="#e8574a" />
+      <path d="M23,23 h8 v8 h-12 z M35,23 h6 l5,8 h-11 z" fill="#7cc4ec" strokeWidth={2.5} />
+      <circle cx={19} cy={42} r={6} fill="#3b4250" />
+      <circle cx={46} cy={42} r={6} fill="#3b4250" />
+      <circle cx={19} cy={42} r={2} fill="#c3ccd6" strokeWidth={0} />
+      <circle cx={46} cy={42} r={2} fill="#c3ccd6" strokeWidth={0} />
+    </g>
+  ),
   globe: (
     <g {...s}>
       <circle cx={32} cy={32} r={24} fill="#7fd0ea" />

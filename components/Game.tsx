@@ -11,6 +11,7 @@ import { Baggage } from "./scenes/Baggage";
 import { Deice } from "./scenes/Deice";
 import { Takeoff } from "./scenes/Takeoff";
 import { WorldMap } from "./scenes/WorldMap";
+import { Parking } from "./scenes/Parking";
 import { IsoWorld, parkedPose, planeDrawable } from "./World";
 import { Banner, BigButton, Flag, Modal, RoundButton, Snowfall, Stars } from "./ui";
 import { Icon } from "./icons";
@@ -84,6 +85,7 @@ export default function Game() {
   const [state, dispatch] = useReducer(reducer, undefined, () => loadGame() ?? initialState());
   const [screen, setScreen] = useState<Screen>("title");
   const [scenePlane, setScenePlane] = useState<string | null>(null);
+  const [parkFlight, setParkFlight] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -351,6 +353,16 @@ export default function Game() {
         return <Tower state={state} setHint={setHint} onLanded={onLandedStable} now={now} paused={paused} onParent={() => setPanel("eltern")} onLight={toggleNight} />;
       case "weltkarte":
         return <WorldMap state={state} />;
+      case "parkplatz":
+        return (
+          <Parking
+            state={state}
+            dispatch={dispatch}
+            setHint={setHint}
+            onFlight={setParkFlight}
+            onFull={() => setCelebration({ title: "Parkplatz voll!", text: "Alle Autos stehen auf ihrem Platz. Jetzt warten die Flugzeuge auf dich!", next: [] })}
+          />
+        );
     }
     if (!active) return <Apron state={state} onSelect={() => {}} onOpen={() => {}} />;
     switch (screen) {
@@ -373,9 +385,9 @@ export default function Game() {
     }
   };
 
-  const headPlane = screen === "vorfeld" || screen === "tower" ? selected : active;
+  const headPlane = screen === "parkplatz" ? state.planes.find((p) => p.id === parkFlight) : screen === "vorfeld" || screen === "tower" ? selected : active;
   const dest = headPlane ? destination(headPlane.dest) : null;
-  const inbound = headPlane && (headPlane.stage === "anflug" || headPlane.stage === "einwinken");
+  const inbound = screen !== "parkplatz" && headPlane && (headPlane.stage === "anflug" || headPlane.stage === "einwinken");
 
   return (
     <div className="viewport">
@@ -437,7 +449,7 @@ export default function Game() {
                           <Flag code={dest.flag} height={30} />
                         </div>
                       ) : (
-                        <b className="banner-title">Flughafen</b>
+                        <b className="banner-title">{screen === "parkplatz" ? "Parkplatz" : "Flughafen"}</b>
                       )
                     }
                     right={<span>{hint ?? (paused ? `Mittagspause! Die Flugzeuge kommen in ${minutes(pauseLeft)} wieder.` : todoText(headPlane, state.season))}</span>}
@@ -446,11 +458,12 @@ export default function Game() {
               </div>
 
               <div className="sidebar-right">
-                <button type="button" className="radar-btn" onClick={() => go("tower")} aria-label="Tower und Radar" title="Tower & Radar">
+                <button type="button" className={`radar-btn${screen === "tower" ? " active" : ""}`} onClick={() => go("tower")} aria-label="Tower und Radar" aria-current={screen === "tower" || undefined} title="Tower & Radar">
                   <MiniRadar count={state.planes.filter((p) => p.stage === "anflug").length} />
                 </button>
-                {screen !== "vorfeld" && <RoundButton icon="airport" label="Zurück zum Vorfeld" color="#3aa3e8" size={78} onClick={() => go("vorfeld")} />}
+                <RoundButton icon="airport" label="Vorfeld" color="#3aa3e8" size={78} active={screen === "vorfeld"} onClick={() => go("vorfeld")} />
                 <RoundButton icon="globe" label="Weltkarte" color="#2fb7a8" size={78} active={screen === "weltkarte"} onClick={() => go("weltkarte")} />
+                <RoundButton icon="car" label="Parkplatz" color="#e9edf2" size={78} active={screen === "parkplatz"} onClick={() => go("parkplatz")} />
                 <RoundButton
                   icon={state.season === "sommer" ? "snow" : "sun"}
                   label={state.season === "sommer" ? "Winter einschalten" : "Sommer einschalten"}
@@ -521,7 +534,7 @@ export default function Game() {
                     {celebration.stay.label}
                   </BigButton>
                 )}
-                <BigButton color="#3aa3e8" icon="airport" onClick={() => go("vorfeld")}>
+                <BigButton color="#3aa3e8" icon="airport" autoFocus={celebration.next.length === 0 && !celebration.stay} onClick={() => go("vorfeld")}>
                   Zum Vorfeld
                 </BigButton>
               </div>
@@ -712,6 +725,7 @@ function Help({ onClose }: { onClose: () => void }) {
     ["checkliste", "Erledige alle Aufgaben: Passagiere mit dem Bus oder mit dem Finger einsteigen lassen, Gepäck und Tanken. Im Winter auch Enteisen."],
     ["pushback", "Schiebe das Flugzeug mit dem Schlepper auf die gelbe Linie. Guten Flug!"],
     ["lamp", "Im Tower schaltest du das Licht an. Dann wird es Nacht, und ein gelbes Postflugzeug bringt Pakete."],
+    ["car", "Parkplatz: Öffne die Schranke und parke die Autos. Die Familien fliegen mit!"],
     ["globe", "Auf der Weltkarte siehst du, wohin deine Flugzeuge fliegen, und sammelst Flugzeug-Sticker."],
   ];
   return (

@@ -7,6 +7,7 @@ import { busWait, otherPlanes, servicePoints, turnaroundProps } from "./Apron";
 import { Hand } from "./Tower";
 import { capture, P, clock, dist, lerp, makePath, pts, svgPoint, unproject, type Pt } from "@/game/iso";
 import { sfx } from "@/game/sound";
+import { guestPassengers } from "@/game/data";
 
 const SPEED = 12;
 const PASSENGERS = 8;
@@ -93,6 +94,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
     setDrawing(null);
   };
 
+  const guests = guestPassengers(plane.guests);
   const boardT = phase === "board" ? Math.max(0, now - boardStart) / 1000 : phase === "done" ? 99 : -1;
   const people: Drawable[] = [];
   if (boardT >= 0) {
@@ -105,7 +107,7 @@ export function BusGame({ state, plane, setHint, onDone }: SceneProps) {
       const k = t / 2.2;
       const w: Pt = k < 0.5 ? [lerp(door[0], foot[0], k * 2), lerp(door[1], foot[1], k * 2)] : [lerp(foot[0], top[0], (k - 0.5) * 2), lerp(foot[1], top[1], (k - 0.5) * 2)];
       const z = k < 0.5 ? 0 : (k - 0.5) * 2 * (g.zc - 0.2);
-      people.push({ key: `pax${i}`, depth: w[0] + w[1] + 0.5, node: <Passenger at={P(w[0], w[1], z)} seed={i} /> });
+      people.push({ key: `pax${i}`, depth: w[0] + w[1] + 0.5, node: <Passenger at={P(w[0], w[1], z)} seed={i} color={guests[i]?.color} bag={guests[i]?.bag ?? true} /> });
     }
   }
 
